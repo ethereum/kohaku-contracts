@@ -1,0 +1,17 @@
+[submodule "privacy-paymaster/lib/account-abstraction"]
+	path = privacy-paymaster/lib/account-abstraction
+	url = https://github.com/eth-infinitism/account-abstraction
+[submodule "privacy-paymaster/lib/forge-std"]
+	path = privacy-paymaster/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "privacy-paymaster/lib/openzeppelin-contracts"]
+	path = privacy-paymaster/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "privacy-paymaster/lib/v3-core"]
+	path = privacy-paymaster/lib/v3-core
+	url = https://github.com/uniswap/v3-core
+	branch = 0.8
+[submodule "privacy-paymaster/lib/v3-periphery"]
+	path = privacy-paymaster/lib/v3-periphery
+	url = https://github.com/uniswap/v3-periphery
+	branch = 0.8

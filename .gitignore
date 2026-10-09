@@ -1,0 +1,7 @@
+# Dotenv and Nix, from developing at the repo root
+.env
+.envrc
+.direnv
+
+.DS_Store
+

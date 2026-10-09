@@ -1,0 +1,52 @@
+{
+  "name": "@privacy-paymasters/sdk",
+  "version": "0.0.5",
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Robert-MacWha/privacy-paymaster"
+  },
+  "type": "module",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./bundler-server": {
+      "types": "./dist/bundler-server.d.ts",
+      "import": "./dist/bundler-server.js"
+    },
+    "./deploy-paymaster": {
+      "types": "./dist/deploy-paymaster.d.ts",
+      "import": "./dist/deploy-paymaster.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build ./src/index.ts ./src/bundler-server.ts ./src/deploy-paymaster.ts --outdir ./dist --target node --format esm --packages external && tsc -p tsconfig.build.json",
+    "serve-bundler": "bun scripts/start-bundler.ts",
+    "deploy": "bun scripts/deploy-paymaster.ts",
+    "test": "bun test",
+    "test:e2e": "bun test tests/e2e.test.ts"
+  },
+  "dependencies": {
+    "@pimlico/alto": "^0.0.20",
+    "prool": "^0.2.4",
+    "smol-toml": "^1.6.1",
+    "viem": "2.48.4"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}

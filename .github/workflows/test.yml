@@ -1,0 +1,75 @@
+name: CI
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/*'
+  pull_request:
+  workflow_dispatch:
+
+env:
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  forge:
+    name: Foundry project
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project: [privacy-paymaster]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - uses: ./.github/actions/load-sops-secrets
+        with:
+          age_key: ${{ secrets.SOPS_AGE_KEY }}
+          secrets_file: ${{ matrix.project }}/secrets/secrets.yaml
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+
+      - name: Show Forge version
+        run: forge --version
+
+      - run: forge build --sizes
+        working-directory: ${{ matrix.project }}
+
+      - run: forge test -vvv
+        working-directory: ${{ matrix.project }}
+
+  js-sdk:
+    name: JavaScript SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - uses: ./.github/actions/load-sops-secrets
+        with:
+          age_key: ${{ secrets.SOPS_AGE_KEY }}
+          secrets_file: privacy-paymaster/secrets/secrets.yaml
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+
+      - run: bun install
+        working-directory: privacy-paymaster/sdk
+
+      - run: bun test
+        working-directory: privacy-paymaster/sdk

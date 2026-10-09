@@ -1,0 +1,94 @@
+name: Publish SDK
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  version-check:
+    name: Check version
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.check.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Check if version is new
+        id: check
+        working-directory: privacy-paymaster/sdk
+        run: |
+          LOCAL=$(jq -r .version package.json)
+          PUBLISHED=$(npm view @privacy-paymasters/sdk version 2>/dev/null || echo "0.0.0")
+          if [ "$LOCAL" = "$PUBLISHED" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    name: SDK Tests
+    runs-on: ubuntu-latest
+    needs: [version-check]
+    if: needs.version-check.outputs.publish == 'true'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - uses: ./.github/actions/load-sops-secrets
+        with:
+          age_key: ${{ secrets.SOPS_AGE_KEY }}
+          secrets_file: privacy-paymaster/secrets/secrets.yaml
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+
+      - run: bun install
+        working-directory: privacy-paymaster/sdk
+
+      - run: bun test
+        working-directory: privacy-paymaster/sdk
+
+  publish:
+    name: Publish to npm
+    needs: [version-check, test]
+    if: needs.version-check.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+
+      - run: bun install
+        working-directory: privacy-paymaster/sdk
+
+      - name: Build
+        working-directory: privacy-paymaster/sdk
+        run: bun run build
+
+      # https://github.com/oven-sh/bun/issues/15601
+      - name: Install npm
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish
+        working-directory: privacy-paymaster/sdk
+        run: npm publish
