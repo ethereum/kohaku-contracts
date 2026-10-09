@@ -34,16 +34,13 @@ jobs:
     if: needs.version-check.outputs.publish == 'true'
     permissions:
       contents: read
+    env:
+      SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
           submodules: recursive
-
-      - uses: ./.github/actions/load-sops-secrets
-        with:
-          age_key: ${{ secrets.SOPS_AGE_KEY }}
-          secrets_file: privacy-paymaster/secrets/secrets.yaml
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1

@@ -70,7 +70,6 @@
             aderyn
 
             pkgs.just
-            pkgs.sops
           ];
         };
       }

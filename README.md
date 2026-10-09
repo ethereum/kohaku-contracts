@@ -24,4 +24,4 @@ forge build
 forge test -vvv
 ```
 
-`forge test` forks Sepolia and needs `SEPOLIA_RPC_URL`. That value is in `privacy-paymaster/secrets/secrets.yaml`, encrypted for the keys listed in `privacy-paymaster/.sops.yaml`.
+`forge test` forks Sepolia and needs `SEPOLIA_RPC_URL` in the environment. CI reads that value from the `SEPOLIA_RPC_URL` GitHub Actions secret.
