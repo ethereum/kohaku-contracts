@@ -223,7 +223,7 @@ The operator runs only `run()` and `confirm()`, plus the read-only checks descri
 - On mainnet (chain id 1), the zkPassport method alone. No Anon Aadhaar verifier is published on mainnet, so no Aadhaar method ships there.
 - On Sepolia (chain id 11155111), the zkPassport method and the Aadhaar method.
 
-The zkPassport method takes eight trusted-key words in a fixed order. The first five come from the script's table: the accepted zkPassport version 0.21.0, the root verifier, the reviewed sub-verifier for that version, the verifier helper the root returns for it, and the root registry. The last three are inputs, described below. The Aadhaar method takes the Groth16 verifier at `0xCBd85cd69C4779aA9a7AB9B6D6A9f6FEd61504F0` and one trusted key, the hash of UIDAI's current public key, both from the table.
+The zkPassport method takes eight trusted-key words in a fixed order. The first five come from the script's table: the accepted zkPassport version 0.21.1, the root verifier, the reviewed sub-verifier for that version, the verifier helper the root returns for it, and the root registry. The last three are inputs, described below. The Aadhaar method takes the Groth16 verifier at `0xCBd85cd69C4779aA9a7AB9B6D6A9f6FEd61504F0` and one trusted key, the hash of UIDAI's current public key, both from the table.
 
 Each method gets its own Safe as its pause holder and its key admin. The two Safes may be one address. Any other chain id stops the script with `DeployIdentity_UnsupportedChain`, in the deployment and in confirm alike, before any other check.
 
@@ -238,7 +238,7 @@ While reviewing, you can read the live values with cast. Each answer is what the
 
 ```sh
 ROOT=0x1D000001000EFD9a6371f4d90bB8920D5431c0D8
-VERSION=0x0000001500000000000000000000000000000000000000000000000000000000
+VERSION=0x0000001500010000000000000000000000000000000000000000000000000000
 cast call $ROOT 'admin()(address)' --rpc-url <url>
 cast call $ROOT 'guardian()(address)' --rpc-url <url>
 cast call $(cast call $ROOT 'getSubVerifier(bytes32)(address)' $VERSION --rpc-url <url>) 'admin()(address)' --rpc-url <url>
@@ -259,7 +259,7 @@ After deploying, it reads each method back. Each must declare its own Safe as ke
 
 A component or role mismatch means zkPassport changed something since the last review. Do not change an input just to make the check pass. Review the change first, then update the table or the role inputs in their own change.
 
-Before a deployment, check zkPassport's latest release. If it is newer than the table's 0.21.0, the method still deploys and its checks pass, since the root keeps routing older versions. But the app makes proofs of the newer version, which the method refuses until the zkPassport method's Safe moves the accepted version with `setTrustedKeys`, checked first with `checkZkPassportKeys` as [described below](#before-a-safe-settrustedkeys-transaction). Committed configs keep working, since they name no version.
+Before a deployment, check zkPassport's latest release. If it is newer than the table's 0.21.1, the method still deploys and its checks pass, since the root keeps routing older versions. But the app makes proofs of the newer version, which the method refuses until the zkPassport method's Safe moves the accepted version with `setTrustedKeys`, checked first with `checkZkPassportKeys` as [described below](#before-a-safe-settrustedkeys-transaction). Committed configs keep working, since they name no version.
 
 ## Commands
 

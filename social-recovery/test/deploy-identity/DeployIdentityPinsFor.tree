@@ -1,9 +1,9 @@
 DeployIdentityPinsForTest
 ├── when the chain is mainnet
-│   ├── it should pin version 0.21.0 and mainnet's zkPassport route
+│   ├── it should pin version 0.21.1 and mainnet's zkPassport route
 │   └── it should ship no Aadhaar method
 ├── when the chain is sepolia
-│   ├── it should pin version 0.21.0 and sepolia's zkPassport route
+│   ├── it should pin version 0.21.1 and sepolia's zkPassport route
 │   └── it should ship the Aadhaar method with its verifier, its code hash and UIDAI's key
 ├── when the chain is not supported
 │   ├── it should revert

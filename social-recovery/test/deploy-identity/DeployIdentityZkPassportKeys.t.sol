@@ -40,16 +40,16 @@ contract DeployIdentityZkPassportKeysTest is DeployIdentityTestBase {
     assertEq(_keys[7], _word(_operator.subVerifierAdmin), 'sub-verifier admin');
   }
 
-  /// For Sepolia's table, zkPassportKeys answers the published words: 0.21.0, then the root verifier, the
+  /// For Sepolia's table, zkPassportKeys answers the published words: 0.21.1, then the root verifier, the
   /// sub-verifier, the verifier helper and the registry as left-padded words, then the three operator inputs. Neither
   /// method's Safe is among them, since a Safe holds roles and is no trusted key.
   function test_WhenSepoliasTableIsRendered() external view {
     bytes32[] memory _keys = _script.zkPassportKeys(_script.pinsFor(_SEPOLIA_CHAIN_ID), _inputs);
     // it should answer the published route and the operator's role words
     assertEq(_keys.length, _KEY_COUNT, 'word count');
-    assertEq(_keys[0], 0x0000001500000000000000000000000000000000000000000000000000000000, 'accepted version');
+    assertEq(_keys[0], 0x0000001500010000000000000000000000000000000000000000000000000000, 'accepted version');
     assertEq(_keys[1], 0x0000000000000000000000001d000001000efd9a6371f4d90bb8920d5431c0d8, 'root verifier');
-    assertEq(_keys[2], 0x00000000000000000000000078e111d6e8b655e5231abae8bfdc3e063084a5ab, 'sub-verifier');
+    assertEq(_keys[2], 0x00000000000000000000000077cb76df1b37644126f8e04caa88356f78a61e47, 'sub-verifier');
     assertEq(_keys[3], 0x000000000000000000000000e8ae97ef2fff59597d1b6882286754fec200f3a9, 'verifier helper');
     assertEq(_keys[4], 0x0000000000000000000000001d0000020038d6e40e1d98e09fa1bb3a7daa8b70, 'root registry');
     assertEq(_keys[5], _word(_inputs.rootAdmin), 'root admin');

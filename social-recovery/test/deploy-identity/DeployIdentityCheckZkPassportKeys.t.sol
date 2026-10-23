@@ -133,7 +133,7 @@ contract DeployIdentityCheckZkPassportKeysTest is DeployIdentityTestBase {
   /// checkZkPassportKeys reverts with the component mismatch named subVerifier, carrying word three and a zero live
   /// value, when word one names version 0.22.0, which the mock root routes nowhere. The sub-verifier is the first
   /// word a route read checks, so its read must ask for the version in the set: a check reading the route with the
-  /// table's version 0.21.0 would find word three and fail later, on the verifier helper.
+  /// table's version 0.21.1 would find word three and fail later, on the verifier helper.
   function test_RevertWhen_TheVersionWordIsNotTheRoutedOne() external {
     bytes32[] memory _keys = _good8();
     _keys[0] = 0x0000001600000000000000000000000000000000000000000000000000000000;
@@ -150,7 +150,7 @@ contract DeployIdentityCheckZkPassportKeysTest is DeployIdentityTestBase {
 
   /// checkZkPassportKeys passes when word one names version 0.22.0 and the mock root routes only 0.22.0 to the same
   /// sub-verifier and verifier helper. This is the check a Safe relies on before a setTrustedKeys moves to a new
-  /// version, so the route reads must use the proposed version and never the table's 0.21.0.
+  /// version, so the route reads must use the proposed version and never the table's 0.21.1.
   function test_WhenTheSetNamesAnotherVersionTheRootRoutes() external {
     bytes32 _proposed = 0x0000001600000000000000000000000000000000000000000000000000000000;
     _rootMock.setVersion(_proposed);

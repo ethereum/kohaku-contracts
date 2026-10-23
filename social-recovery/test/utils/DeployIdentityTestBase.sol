@@ -24,21 +24,21 @@ abstract contract DeployIdentityTestBase is Test {
   /// @notice Sepolia's chain id.
   uint256 internal constant _SEPOLIA_CHAIN_ID = 11_155_111;
 
-  /// @notice zkPassport 0.21.0 as a version word: major, minor and patch as three big-endian uint16 values,
+  /// @notice zkPassport 0.21.1 as a version word: major, minor and patch as three big-endian uint16 values,
   ///         then zeroes. It is the version both chains accept.
-  bytes32 internal constant _VERSION_0_21_0 = 0x0000001500000000000000000000000000000000000000000000000000000000;
+  bytes32 internal constant _VERSION_0_21_1 = 0x0000001500010000000000000000000000000000000000000000000000000000;
 
   /// @notice zkPassport's root verifier, the same address on mainnet and Sepolia.
   address internal constant _ROOT_VERIFIER = 0x1D000001000EFD9a6371f4d90bB8920D5431c0D8;
   /// @notice zkPassport's root registry, the same address on mainnet and Sepolia.
   address internal constant _ROOT_REGISTRY = 0x1D0000020038d6E40E1d98e09fA1bb3A7DAA8B70;
-  /// @notice The version 0.21 sub-verifier on mainnet.
-  address internal constant _MAINNET_SUB_VERIFIER = 0x18fD6461F25074e9AAD6d53712dCa50bD364cc14;
-  /// @notice The verifier helper the mainnet route uses for version 0.21.
+  /// @notice The version 0.21.1 sub-verifier on mainnet.
+  address internal constant _MAINNET_SUB_VERIFIER = 0xBeAE01953C520A49eE869c02edBE69D6da93D965;
+  /// @notice The verifier helper the mainnet route uses for version 0.21.1.
   address internal constant _MAINNET_VERIFIER_HELPER = 0x1E878E61D565F4c40FC40235D4c4A5FC66Afab2D;
-  /// @notice The version 0.21 sub-verifier on Sepolia.
-  address internal constant _SEPOLIA_SUB_VERIFIER = 0x78e111D6e8b655E5231ABAE8bFDC3e063084a5Ab;
-  /// @notice The verifier helper the Sepolia route uses for version 0.21.
+  /// @notice The version 0.21.1 sub-verifier on Sepolia.
+  address internal constant _SEPOLIA_SUB_VERIFIER = 0x77cB76Df1b37644126f8e04caA88356F78A61e47;
+  /// @notice The verifier helper the Sepolia route uses for version 0.21.1.
   address internal constant _SEPOLIA_VERIFIER_HELPER = 0xe8AE97eF2fFF59597D1B6882286754FEC200F3a9;
 
   /// @notice The Anon Aadhaar Groth16 verifier on Sepolia.
@@ -80,7 +80,7 @@ abstract contract DeployIdentityTestBase is Test {
   /// @notice A mock root verifier and sub-verifier, set by `_useLiveReadMocks`.
   DeployIdentityMockRootVerifier internal _rootMock;
   DeployIdentityMockSubVerifier internal _subMock;
-  /// @notice A local table: every address holds code, the version is 0.21.0, and the Aadhaar method ships with
+  /// @notice A local table: every address holds code, the version is 0.21.1, and the Aadhaar method ships with
   ///         UIDAI's key and the code hash of the code etched at its verifier.
   IDeployIdentity.Pins internal _pins;
   /// @notice Operator inputs hashed from labels. The two methods' Safes are different addresses, so a role given
@@ -93,7 +93,7 @@ abstract contract DeployIdentityTestBase is Test {
   function setUp() public virtual {
     _script = new DeployIdentity();
     _pins = IDeployIdentity.Pins({
-      acceptedVersion: _VERSION_0_21_0,
+      acceptedVersion: _VERSION_0_21_1,
       rootVerifier: _codeAt('localRootVerifier'),
       subVerifier: _codeAt('localSubVerifier'),
       verifierHelper: _codeAt('localVerifierHelper'),
@@ -185,7 +185,7 @@ abstract contract DeployIdentityTestBase is Test {
   }
 
   /// @notice Puts a mock root verifier and a mock sub-verifier in `_pins` and makes every live read agree with
-  ///         `_pins` and `_inputs`: the root routes 0.21.0 to the mock sub-verifier with `_pins.verifierHelper`, names
+  ///         `_pins` and `_inputs`: the root routes 0.21.1 to the mock sub-verifier with `_pins.verifierHelper`, names
   ///         `_pins.rootRegistry`, and reports `_inputs`' root admin and root guardian, and the sub-verifier reports
   ///         `_inputs`' sub-verifier admin.
   function _useLiveReadMocks() internal {

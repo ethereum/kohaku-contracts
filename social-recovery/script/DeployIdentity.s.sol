@@ -32,9 +32,9 @@ contract DeployIdentity is Script, IDeployIdentity {
   /// @notice Sepolia's chain id.
   uint256 internal constant _SEPOLIA_CHAIN_ID = 11_155_111;
 
-  /// @notice The zkPassport version both chains accept, 0.21.0: major, minor and patch as three big-endian
+  /// @notice The zkPassport version both chains accept, 0.21.1: major, minor and patch as three big-endian
   ///         uint16 values in the first six bytes, and zero after them.
-  bytes32 internal constant _ACCEPTED_VERSION = 0x0000001500000000000000000000000000000000000000000000000000000000;
+  bytes32 internal constant _ACCEPTED_VERSION = 0x0000001500010000000000000000000000000000000000000000000000000000;
 
   /// @notice zkPassport's root verifier, the same address on both chains.
   address internal constant _ROOT_VERIFIER = 0x1D000001000EFD9a6371f4d90bB8920D5431c0D8;
@@ -42,16 +42,16 @@ contract DeployIdentity is Script, IDeployIdentity {
   /// @notice zkPassport's root registry, the same address on both chains.
   address internal constant _ROOT_REGISTRY = 0x1D0000020038d6E40E1d98e09fA1bb3A7DAA8B70;
 
-  /// @notice The reviewed version 0.21 sub-verifier on mainnet.
-  address internal constant _MAINNET_SUB_VERIFIER = 0x18fD6461F25074e9AAD6d53712dCa50bD364cc14;
+  /// @notice The reviewed version 0.21.1 sub-verifier on mainnet.
+  address internal constant _MAINNET_SUB_VERIFIER = 0xBeAE01953C520A49eE869c02edBE69D6da93D965;
 
-  /// @notice The verifier helper the version 0.21 route returns on mainnet.
+  /// @notice The verifier helper the version 0.21.1 route returns on mainnet.
   address internal constant _MAINNET_VERIFIER_HELPER = 0x1E878E61D565F4c40FC40235D4c4A5FC66Afab2D;
 
-  /// @notice The reviewed version 0.21 sub-verifier on Sepolia.
-  address internal constant _SEPOLIA_SUB_VERIFIER = 0x78e111D6e8b655E5231ABAE8bFDC3e063084a5Ab;
+  /// @notice The reviewed version 0.21.1 sub-verifier on Sepolia.
+  address internal constant _SEPOLIA_SUB_VERIFIER = 0x77cB76Df1b37644126f8e04caA88356F78A61e47;
 
-  /// @notice The verifier helper the version 0.21 route returns on Sepolia.
+  /// @notice The verifier helper the version 0.21.1 route returns on Sepolia.
   address internal constant _SEPOLIA_VERIFIER_HELPER = 0xe8AE97eF2fFF59597D1B6882286754FEC200F3a9;
 
   /// @notice The Anon Aadhaar Groth16 verifier on Sepolia, the only chain the Aadhaar method ships on.
