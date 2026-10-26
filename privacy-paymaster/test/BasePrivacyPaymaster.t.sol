@@ -50,6 +50,20 @@ contract BasePrivacyPaymasterTest is Test {
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, actualGasCost, 0);
     }
 
+    function _setSimulate() internal {
+        vm.store(address(paymaster), paymaster.SIMULATE_SLOT(), bytes32(uint256(1)));
+    }
+
+    /// Returns the gas used by validation, with the paymaster's storage cold.
+    function _validateGas(uint256 maxCost) internal returns (uint256 gasUsed) {
+        PackedUserOperation memory op = _buildUserOp();
+        vm.cool(address(paymaster));
+        vm.prank(address(entryPoint));
+        uint256 gasBefore = gasleft();
+        paymaster.validatePaymasterUserOp(op, bytes32(0), maxCost);
+        gasUsed = gasBefore - gasleft();
+    }
+
     // ----- Constructor -----
 
     function test_constructor() public view {
@@ -179,6 +193,27 @@ contract BasePrivacyPaymasterTest is Test {
     function test_validate_rejectsNonEntryPoint() public {
         vm.expectRevert("Sender not EntryPoint");
         paymaster.validatePaymasterUserOp(_buildUserOp(), bytes32(0), 0);
+    }
+
+    // ----- Simulation -----
+
+    function test_validate_simulateSkipsFeeCheck() public {
+        paymaster.setFee(address(0), 0.1 ether, RECIPIENT);
+        _setSimulate();
+
+        assertGt(_validate(0.5 ether).length, 0);
+    }
+
+    function test_validate_simulateUsesSameGas() public {
+        paymaster.setFee(address(0), 1 ether, RECIPIENT);
+        uint256 normalGas = _validateGas(0.5 ether);
+
+        paymaster.setFee(address(0), 0.1 ether, RECIPIENT);
+        _setSimulate();
+        uint256 simulatedGas = _validateGas(0.5 ether);
+
+        assertGe(simulatedGas, normalGas);
+        assertApproxEqAbs(simulatedGas, normalGas, 50);
     }
 
     // ----- postOp -----
