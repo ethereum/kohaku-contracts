@@ -43,8 +43,7 @@ contract DeployPrivacyPools is Script {
     }
 
     function deploy(uint256 privateKey) public returns (PrivacyPoolsPaymaster) {
-        (IEntryPoint entryPoint, IUniswapV3Factory factory, address weth, uint32 twapPeriod) =
-            PaymasterSetup.baseArgs();
+        (IEntryPoint entryPoint, IUniswapV3Factory factory, address weth, uint32 twapPeriod) = PaymasterSetup.baseArgs();
 
         vm.broadcast(privateKey);
         return new PrivacyPoolsPaymaster(entryPoint, factory, weth, twapPeriod);

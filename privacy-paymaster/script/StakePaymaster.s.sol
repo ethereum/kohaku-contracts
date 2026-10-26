@@ -3,9 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Script} from "forge-std/Script.sol";
 
-import {
-    IEntryPoint
-} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {BasePrivacyPaymaster} from "../contracts/BasePrivacyPaymaster.sol";
 
 contract StakePaymaster is Script {
@@ -16,13 +14,7 @@ contract StakePaymaster is Script {
         uint256 depositAmount = vm.envOr("DEPOSIT_AMOUNT", uint256(0));
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
 
-        stake(
-            paymasterAddr,
-            stakeAmount,
-            unstakeDelay,
-            depositAmount,
-            privateKey
-        );
+        stake(paymasterAddr, stakeAmount, unstakeDelay, depositAmount, privateKey);
     }
 
     function stake(
