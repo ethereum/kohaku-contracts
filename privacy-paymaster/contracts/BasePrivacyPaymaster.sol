@@ -1,0 +1,295 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.28;
+
+import {
+    BasePaymaster
+} from "@account-abstraction/contracts/core/BasePaymaster.sol";
+import {
+    UserOperationLib
+} from "@account-abstraction/contracts/core/UserOperationLib.sol";
+import {
+    PackedUserOperation
+} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
+import {
+    IEntryPoint
+} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {
+    IUniswapV3Factory
+} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import {
+    OracleLibrary
+} from "@uniswap/v3-periphery/contracts/libraries/OracleLibrary.sol";
+
+/// Base paymaster for sponsoring withdrawals from privacy protocols.
+///
+/// Operations are paid for with the user's shielded funds. During validation
+/// the protocol-specific `_collectFee` executes the withdrawal, which pays a
+/// fee to this paymaster. Any fee in excess of the operation's actual cost is
+/// refunded in `postOp`.
+///
+/// NOTE: Quoting ERC20 fee tokens reads a Uniswap V3 TWAP, which uses the
+/// TIMESTAMP opcode during validation. ERC-7562 (OP-011) bans this, so ERC20
+/// fee tokens only work with bundlers that relax that rule. ETH and WETH fees
+/// don't touch the oracle.
+abstract contract BasePrivacyPaymaster is BasePaymaster {
+    using SafeERC20 for IERC20;
+    using UserOperationLib for PackedUserOperation;
+
+    struct FeeToken {
+        bool allowed;
+        address pool;
+    }
+
+    struct PostOpContext {
+        address feeToken;
+        uint256 feePaid;
+        address refundRecipient;
+        uint256 maxCost;
+        uint256 maxCostInToken;
+        uint256 postOpGasLimit;
+    }
+
+    uint256 internal constant BPS = 10_000;
+
+    // ----- ERRORS -----
+    error FeeTokenNotAllowed(address feeToken);
+    error InsufficientFee(uint256 required, uint256 fee);
+    error CallGasLimitNonZero(uint256 callGasLimit);
+
+    // ----- IMMUTABLES -----
+    IUniswapV3Factory public immutable FACTORY;
+    address public immutable WETH;
+
+    // ----- STATE -----
+    uint32 public twapPeriod;
+    /// Markup charged on top of the quoted gas cost, in basis points.
+    uint256 public markupBps;
+    mapping(address => FeeToken) public feeTokens;
+
+    // ----- EVENTS -----
+    event FeeTokenSet(address indexed token, bool allowed);
+    event TwapPeriodSet(uint32 twapPeriod);
+    event MarkupSet(uint256 markupBps);
+    event RefundFailed(
+        address indexed recipient,
+        address indexed token,
+        uint256 amount
+    );
+
+    // ----- CONSTRUCTOR -----
+    constructor(
+        IEntryPoint _entryPoint,
+        IUniswapV3Factory _factory,
+        address _weth,
+        uint32 _twapPeriod
+    ) BasePaymaster(_entryPoint) {
+        FACTORY = _factory;
+        WETH = _weth;
+        twapPeriod = _twapPeriod;
+
+        // Native ETH is always allowed
+        feeTokens[address(0)] = FeeToken({allowed: true, pool: address(0)});
+        feeTokens[_weth] = FeeToken({allowed: true, pool: address(0)});
+    }
+
+    receive() external payable {}
+
+    // ----- ADMIN -----
+    function setTwapPeriod(
+        uint32 _twapPeriod
+        // aderyn-ignore-next-line(centralization-risk)
+    ) external onlyOwner {
+        twapPeriod = _twapPeriod;
+        emit TwapPeriodSet(_twapPeriod);
+    }
+
+    function setMarkup(
+        uint256 _markupBps
+        // aderyn-ignore-next-line(centralization-risk)
+    ) external onlyOwner {
+        markupBps = _markupBps;
+        emit MarkupSet(_markupBps);
+    }
+
+    function setFeeToken(
+        address token,
+        uint24 uniswapFee,
+        bool allowed
+        // aderyn-ignore-next-line(centralization-risk)
+    ) external onlyOwner {
+        address pool;
+        if (allowed && token != address(0) && token != WETH) {
+            // aderyn-ignore-next-line reentrancy
+            pool = FACTORY.getPool(token, WETH, uniswapFee);
+            require(pool != address(0), "pool not supported");
+        }
+        feeTokens[token] = FeeToken({allowed: allowed, pool: pool});
+        emit FeeTokenSet(token, allowed);
+    }
+
+    // aderyn-ignore-next-line(centralization-risk)
+    function sweep(address payable to) external onlyOwner {
+        (bool ok, ) = to.call{value: address(this).balance}("");
+        require(ok, "sweep failed");
+    }
+
+    // aderyn-ignore-next-line(centralization-risk)
+    function sweepERC20(IERC20 token, address to) external onlyOwner {
+        uint256 balance = token.balanceOf(address(this));
+        token.safeTransfer(to, balance);
+    }
+
+    // ----- BasePaymaster -----
+    function _validatePaymasterUserOp(
+        PackedUserOperation calldata userOp,
+        bytes32,
+        uint256 maxCost
+    ) internal override returns (bytes memory context, uint256 validationData) {
+        (
+            address feeToken,
+            uint256 feePaid,
+            address refundRecipient
+        ) = _collectFee(userOp);
+        if (!feeTokens[feeToken].allowed) revert FeeTokenNotAllowed(feeToken);
+
+        uint256 maxCostInToken = quoteWeiInToken(feeToken, maxCost);
+        if (feePaid < maxCostInToken) {
+            revert InsufficientFee(maxCostInToken, feePaid);
+        }
+
+        // Nothing to refund against when gas is free.
+        if (refundRecipient == address(0) || maxCost == 0) return ("", 0);
+
+        context = abi.encode(
+            PostOpContext({
+                feeToken: feeToken,
+                feePaid: feePaid,
+                refundRecipient: refundRecipient,
+                maxCost: maxCost,
+                maxCostInToken: maxCostInToken,
+                postOpGasLimit: userOp.unpackPostOpGasLimit()
+            })
+        );
+        return (context, 0);
+    }
+
+    /// Only called by the EntryPoint when validation returned a context.
+    ///
+    /// `actualGasCost` excludes this postOp's own gas and its unused-gas
+    /// penalty, so the full `postOpGasLimit` is charged on top. That covers
+    /// both, since the penalty is at most 10% of the unused limit.
+    function _postOp(
+        PostOpMode,
+        bytes calldata context,
+        uint256 actualGasCost,
+        uint256 actualUserOpFeePerGas
+    ) internal override {
+        PostOpContext memory ctx = abi.decode(context, (PostOpContext));
+        uint256 gasCost = actualGasCost +
+            ctx.postOpGasLimit *
+            actualUserOpFeePerGas;
+        uint256 refund = _refundAmount(ctx, gasCost);
+        if (refund == 0) return;
+
+        if (!_tryTransfer(ctx.feeToken, ctx.refundRecipient, refund)) {
+            emit RefundFailed(ctx.refundRecipient, ctx.feeToken, refund);
+        }
+    }
+
+    /// Quotes `weiAmount` in `feeToken`, including the markup. ERC20 tokens
+    /// are priced with the Uniswap V3 TWAP against WETH.
+    function quoteWeiInToken(
+        address feeToken,
+        uint256 weiAmount
+    ) public view returns (uint256) {
+        uint256 amount = (weiAmount * (BPS + markupBps)) / BPS;
+        if (feeToken == address(0) || feeToken == WETH) return amount;
+
+        (int24 meanTick, ) = OracleLibrary.consult(
+            feeTokens[feeToken].pool,
+            twapPeriod
+        );
+        return
+            OracleLibrary.getQuoteAtTick(
+                meanTick,
+                SafeCast.toUint128(amount),
+                WETH,
+                feeToken
+            );
+    }
+
+    // ----- PROTOCOL HOOKS -----
+
+    /// Executes the protocol withdrawal, which must pay this paymaster's fee.
+    ///
+    /// @return feeToken The token the fee was paid in, or address(0) for ETH.
+    /// @return feePaid The amount of `feeToken` paid to this paymaster.
+    /// @return refundRecipient Where excess fees are refunded in postOp, or
+    ///         address(0) for no refund.
+    ///
+    /// @dev Must revert unless the fee has been paid.
+    function _collectFee(
+        PackedUserOperation calldata userOp
+    )
+        internal
+        virtual
+        returns (address feeToken, uint256 feePaid, address refundRecipient);
+
+    // ----- HELPERS -----
+
+    /// The protocol-specific data following the paymaster's static fields.
+    function _paymasterData(
+        PackedUserOperation calldata userOp
+    ) internal pure returns (bytes calldata) {
+        return userOp.paymasterAndData[UserOperationLib.PAYMASTER_DATA_OFFSET:];
+    }
+
+    /// Anti-griefing: either the withdrawal recipient is the userOp sender
+    /// (so it may perform secondary actions like a DEX swap), or the op
+    /// may not execute any calls. Otherwise a third party could attach
+    /// expensive calls to someone else's withdrawal.
+    function _checkCallGasLimit(
+        PackedUserOperation calldata userOp,
+        address recipient
+    ) internal pure {
+        uint256 callGasLimit = userOp.unpackCallGasLimit();
+        if (recipient != userOp.sender && callGasLimit != 0) {
+            revert CallGasLimitNonZero(callGasLimit);
+        }
+    }
+
+    /// Transfers `amount` of `token` (address(0) for ETH), returning false
+    /// instead of reverting on failure.
+    function _tryTransfer(
+        address token,
+        address to,
+        uint256 amount
+    ) internal returns (bool ok) {
+        if (token == address(0)) {
+            (ok, ) = to.call{value: amount}("");
+            return ok;
+        }
+        return IERC20(token).trySafeTransfer(to, amount);
+    }
+
+    /// The part of the fee not needed to cover `gasCost`, converting at the
+    /// rate locked in during validation and rounding in the paymaster's favour.
+    function _refundAmount(
+        PostOpContext memory ctx,
+        uint256 gasCost
+    ) internal pure returns (uint256) {
+        uint256 cost = Math.mulDiv(
+            gasCost,
+            ctx.maxCostInToken,
+            ctx.maxCost,
+            Math.Rounding.Ceil
+        );
+        return ctx.feePaid > cost ? ctx.feePaid - cost : 0;
+    }
+}

@@ -17,7 +17,7 @@ import {
     UnshieldType,
     ShieldRequest,
     ShieldCiphertext
-} from "../../contracts/fee_adapters/railgun/Globals.sol";
+} from "../../contracts/railgun/Globals.sol";
 
 library RailgunFixtures {
     using stdJson for string;

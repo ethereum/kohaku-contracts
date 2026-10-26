@@ -9,7 +9,7 @@ import configFixtures from "../../test/fixtures/tornadocash/config.json";
 import shieldFixtures from "../../test/fixtures/tornadocash/shield.json";
 import unshieldFixtures from "../../test/fixtures/tornadocash/unshield.json";
 import { createBundlerClient, toSimple7702SmartAccount } from "viem/account-abstraction";
-import { encodePaymasterData, encodeTornadoAdapterData } from "../src/adapter-data";
+import { encodeTornadoPaymasterData } from "../src/adapter-data";
 
 const tornadoAbi = parseAbi([
     "function deposit(bytes32 _commitment) external payable",
@@ -31,7 +31,6 @@ let bundlerRpcUrl: string;
 let stop: () => Promise<void>;
 
 let paymasterAddr: Address = "0x00";
-let tornadoAdapterAddr: Address = "0x00";
 
 beforeAll(async () => {
     const servers = await startServers({
@@ -87,17 +86,13 @@ describe("tornado paymaster e2e", () => {
         // Unshield via bundler
         console.log("Unshielding via bundler...");
 
-        const paymasterData = encodePaymasterData(
-            tornadoAdapterAddr,
-            encodeTornadoAdapterData(
-                unshieldFixtures.proof as Hex,
-                unshieldFixtures.root as Hex,
-                unshieldFixtures.nullifierHash as Hex,
-                unshieldFixtures.recipient as Address,
-                unshieldFixtures.relayer as Address,
-                BigInt(unshieldFixtures.fee as number),
-                BigInt(0)
-            )
+        const paymasterData = encodeTornadoPaymasterData(
+            chain.protocols.tornado.eth_1.instance as Address,
+            unshieldFixtures.proof as Hex,
+            unshieldFixtures.root as Hex,
+            unshieldFixtures.nullifierHash as Hex,
+            unshieldFixtures.recipient as Address,
+            BigInt(unshieldFixtures.fee as number)
         );
 
         const authorization = await client.signAuthorization(account.authorization);
@@ -132,10 +127,9 @@ describe("tornado paymaster e2e", () => {
 
 async function setupTornadocash(forkUrl: string) {
     console.log("Deploying Paymaster");
-    const { paymasterAddress, tornadoAdapterAddress } = await deployPaymaster({
+    const { paymasterAddress } = await deployPaymaster({
         forkUrl,
         privateKey: DEPLOYER_PK,
     });
     paymasterAddr = paymasterAddress;
-    tornadoAdapterAddr = tornadoAdapterAddress;
 }

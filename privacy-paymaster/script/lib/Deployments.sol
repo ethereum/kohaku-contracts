@@ -16,8 +16,11 @@ library Deployments {
         string memory field,
         address value
     ) internal {
+        string memory p = path();
+        if (!vm.exists(p)) vm.writeFile(p, "{}");
+
         string memory json = vm.serializeAddress(section, field, value);
-        vm.writeJson(json, path(), string.concat(".", section));
+        vm.writeJson(json, p, string.concat(".", section));
     }
 
     function readAddress(

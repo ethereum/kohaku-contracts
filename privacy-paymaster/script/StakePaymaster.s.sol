@@ -8,11 +8,15 @@ import {Chains} from "./lib/Chains.sol";
 import {
     IEntryPoint
 } from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
-import {PrivacyPaymaster} from "../contracts/PrivacyPaymaster.sol";
+import {BasePrivacyPaymaster} from "../contracts/BasePrivacyPaymaster.sol";
 
 contract StakePaymaster is Script {
     function run() external {
-        address paymasterAddr = Deployments.readAddress("paymaster", "address");
+        // Deployment section of the paymaster to use: tornado, privacypools or railgun.
+        address paymasterAddr = Deployments.readAddress(
+            vm.envString("PAYMASTER"),
+            "paymaster"
+        );
         uint256 stakeAmount = vm.envOr("STAKE_AMOUNT", uint256(0));
         uint32 unstakeDelay = uint32(vm.envOr("UNSTAKE_DELAY", uint32(0)));
         uint256 depositAmount = vm.envOr("DEPOSIT_AMOUNT", uint256(0));
@@ -34,7 +38,7 @@ contract StakePaymaster is Script {
         uint256 depositAmount,
         uint256 privateKey
     ) public {
-        PrivacyPaymaster paymaster = PrivacyPaymaster(payable(paymasterAddr));
+        BasePrivacyPaymaster paymaster = BasePrivacyPaymaster(payable(paymasterAddr));
         IEntryPoint entryPoint = paymaster.entryPoint();
 
         if (stakeAmount > 0) {

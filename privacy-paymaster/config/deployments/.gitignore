@@ -1,1 +1,2 @@
-anvil-test.json
+# Deployment records are written per run by the deploy scripts
+*.json

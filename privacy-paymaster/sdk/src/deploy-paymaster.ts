@@ -16,7 +16,6 @@ export interface DeployPaymasterOptions {
 
 export interface DeploymentResult {
     paymasterAddress: `0x${string}`;
-    tornadoAdapterAddress: `0x${string}`;
 }
 
 function findProjectRoot(startDir: string): string {
@@ -58,15 +57,13 @@ export async function deployPaymaster(options: DeployPaymasterOptions): Promise<
     await writeFile(deploymentsPath, "{}");
 
     const env: NodeJS.ProcessEnv = { ...process.env, DEPLOY_ENV: deployEnv, PRIVATE_KEY: privateKey };
-    await forge(["script", "DeployPaymaster", "--fork-url", forkUrl, "--broadcast"], env, projectRoot);
-    await forge(["script", "StakePaymaster", "--fork-url", forkUrl, "--broadcast"], {
-        ...env, STAKE_AMOUNT: stakeAmount, UNSTAKE_DELAY: unstakeDelay, DEPOSIT_AMOUNT: depositAmount,
-    }, projectRoot);
     await forge(["script", "DeployTornado", "--fork-url", forkUrl, "--broadcast"], env, projectRoot);
+    await forge(["script", "StakePaymaster", "--fork-url", forkUrl, "--broadcast"], {
+        ...env, PAYMASTER: "tornado", STAKE_AMOUNT: stakeAmount, UNSTAKE_DELAY: unstakeDelay, DEPOSIT_AMOUNT: depositAmount,
+    }, projectRoot);
 
     const deployments = JSON.parse(await readFile(deploymentsPath, "utf-8"));
     return {
-        paymasterAddress: deployments.paymaster.address as `0x${string}`,
-        tornadoAdapterAddress: deployments.tornado_eth_1.tornadoAdapter as `0x${string}`,
+        paymasterAddress: deployments.tornado.paymaster as `0x${string}`,
     };
 }

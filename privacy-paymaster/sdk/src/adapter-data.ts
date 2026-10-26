@@ -1,34 +1,24 @@
 import { encodeAbiParameters, parseAbiParameters, type Address, type Hex } from "viem";
 
-export function encodePaymasterData(
-    adapter: Address,
-    adapterData: Hex
-) {
-    return encodeAbiParameters(
-        parseAbiParameters("(address adapter, bytes adapterData)"),
-        [{ adapter, adapterData }]
-    );
-}
-
-export function encodeTornadoAdapterData(
+/// Encodes `TornadoPaymaster.PaymasterData`. The proof must be generated with
+/// `relayer` set to the paymaster's address and `refund` set to 0.
+export function encodeTornadoPaymasterData(
+    instance: Address,
     proof: Hex,
     root: Hex,
     nullifierHash: Hex,
     recipient: Address,
-    relayer: Address,
-    fee: bigint,
-    refund: bigint
+    fee: bigint
 ) {
     return encodeAbiParameters(
-        parseAbiParameters("(bytes proof, bytes32 root, bytes32 nullifierHash, address recipient, address relayer, uint256 fee, uint256 refund)"),
+        parseAbiParameters("(address instance, bytes proof, bytes32 root, bytes32 nullifierHash, address recipient, uint256 fee)"),
         [{
+            instance,
             proof,
             root,
             nullifierHash,
             recipient,
-            relayer,
             fee,
-            refund,
         }]
     );
 }

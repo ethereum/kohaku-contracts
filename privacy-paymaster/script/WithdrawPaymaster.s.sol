@@ -5,11 +5,15 @@ import {Script} from "forge-std/Script.sol";
 import {Deployments} from "./lib/Deployments.sol";
 import {Chains} from "./lib/Chains.sol";
 
-import {PrivacyPaymaster} from "../contracts/PrivacyPaymaster.sol";
+import {BasePrivacyPaymaster} from "../contracts/BasePrivacyPaymaster.sol";
 
 contract WithdrawPaymaster is Script {
     function run() external {
-        address paymasterAddr = Deployments.readAddress("paymaster", "address");
+        // Deployment section of the paymaster to use: tornado, privacypools or railgun.
+        address paymasterAddr = Deployments.readAddress(
+            vm.envString("PAYMASTER"),
+            "paymaster"
+        );
         uint256 withdrawAmount = vm.envOr("WITHDRAW_AMOUNT", uint256(0));
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
 
@@ -21,7 +25,7 @@ contract WithdrawPaymaster is Script {
         uint256 withdrawAmount,
         uint256 privateKey
     ) public {
-        PrivacyPaymaster paymaster = PrivacyPaymaster(payable(paymasterAddr));
+        BasePrivacyPaymaster paymaster = BasePrivacyPaymaster(payable(paymasterAddr));
 
         vm.broadcast(privateKey);
         address payable to = payable(vm.addr(privateKey));

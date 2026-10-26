@@ -4,9 +4,14 @@ pragma solidity ^0.8.28;
 import {
     PackedUserOperation
 } from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
+import {
+    IEntryPoint
+} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {
+    IUniswapV3Factory
+} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
-import {PaymasterLib} from "../../libraries/PaymasterLib.sol";
-import {IFeeAdapter} from "../../interfaces/IFeeAdapter.sol";
+import {BasePrivacyPaymaster} from "../BasePrivacyPaymaster.sol";
 import {IRailgunSmartWallet} from "./interfaces/IRailgunSmartWallet.sol";
 import {
     Transaction,
@@ -15,8 +20,12 @@ import {
     TokenType
 } from "./Globals.sol";
 
-contract RailgunFeeAdapter is IFeeAdapter {
-    struct AdapterData {
+/// Paymaster for Railgun transactions.
+///
+/// The fee is paid as a shielded transfer to the paymaster's railgun wallet,
+/// so it can't be refunded.
+contract RailgunPaymaster is BasePrivacyPaymaster {
+    struct PaymasterData {
         bytes16 random;
         address asset;
         uint120 value;
@@ -24,7 +33,6 @@ contract RailgunFeeAdapter is IFeeAdapter {
     }
 
     // ----- ERRORS -----
-    error MalformedAdapterData();
     error AdaptParamsAreNotSender(bytes32 adaptParams, bytes32 sender);
     error MissingFee(
         bytes32 master_public_key,
@@ -32,7 +40,6 @@ contract RailgunFeeAdapter is IFeeAdapter {
         address asset,
         uint120 value
     );
-    error RailgunTransactionFailed(bytes reason);
 
     /// ----- IMMUTABLES -----
     IRailgunSmartWallet public immutable RAILGUN_SMART_WALLET;
@@ -40,68 +47,52 @@ contract RailgunFeeAdapter is IFeeAdapter {
     bytes32 immutable MASTER_PUBLIC_KEY;
 
     constructor(
+        IEntryPoint _entryPoint,
+        IUniswapV3Factory _factory,
+        address _weth,
+        uint32 _twapPeriod,
         IRailgunSmartWallet _railgunSmartWallet,
         bytes32 _masterPublicKey
-    ) {
+    ) BasePrivacyPaymaster(_entryPoint, _factory, _weth, _twapPeriod) {
         RAILGUN_SMART_WALLET = _railgunSmartWallet;
         MASTER_PUBLIC_KEY = _masterPublicKey;
     }
 
-    function collectFee(
+    // ----- BasePrivacyPaymaster -----
+    function _collectFee(
         PackedUserOperation calldata userOp
-    )
-        external
-        returns (address feeToken, uint256 feePaid, address refundRecipient)
-    {
-        AdapterData memory d;
-        try this.decodeAdapterData(userOp.paymasterAndData) returns (
-            AdapterData memory decoded
-        ) {
-            d = decoded;
-        } catch {
-            revert MalformedAdapterData();
-        }
-        feeToken = d.asset;
-        feePaid = d.value;
-        // TODO: Add an optional refund recipient in the AdapterData struct
-        refundRecipient = address(0);
-
+    ) internal override returns (address, uint256, address) {
+        PaymasterData memory d = abi.decode(
+            _paymasterData(userOp),
+            (PaymasterData)
+        );
         _verifyTransactions(userOp.sender, d);
-        try RAILGUN_SMART_WALLET.transact(d.transactions) {} catch (
-            bytes memory reason
-        ) {
-            revert RailgunTransactionFailed(reason);
-        }
-    }
+        RAILGUN_SMART_WALLET.transact(d.transactions);
 
-    function decodeAdapterData(
-        bytes calldata paymasterAndData
-    ) external pure returns (AdapterData memory) {
-        PaymasterLib.PaymasterData memory pd = PaymasterLib
-            .decodePaymasterAndData(paymasterAndData);
-        return abi.decode(pd.adapterData, (AdapterData));
+        // TODO: Add an optional refund recipient in the PaymasterData struct
+        return (d.asset, d.value, address(0));
     }
 
     /// Verifies the provided railgun transactions
     ///
-    /// All transactions must have their boundParams.adaptParams set to the paymaster's address to
+    /// All transactions must have their boundParams.adaptParams set to the sender's address to
     /// prevent griefing attacks against users.
     ///
     /// At least one transaction must include a commitment matching the expected commitment for the fee transfer.
     function _verifyTransactions(
         address sender,
-        AdapterData memory adapterData
+        PaymasterData memory d
     ) internal view {
         bytes32 expectedCommitment = _hashCommitment(
             MASTER_PUBLIC_KEY,
-            adapterData.random,
-            adapterData.asset,
-            adapterData.value
+            d.random,
+            d.asset,
+            d.value
         );
 
         bool commitmentFound = false;
-        for (uint256 i = 0; i < adapterData.transactions.length; i++) {
-            Transaction memory t = adapterData.transactions[i];
+        for (uint256 i = 0; i < d.transactions.length; i++) {
+            Transaction memory t = d.transactions[i];
             if (t.boundParams.adaptParams != bytes32(uint256(uint160(sender))))
                 revert AdaptParamsAreNotSender(
                     t.boundParams.adaptParams,
@@ -116,12 +107,7 @@ contract RailgunFeeAdapter is IFeeAdapter {
         }
 
         if (!commitmentFound)
-            revert MissingFee(
-                MASTER_PUBLIC_KEY,
-                adapterData.random,
-                adapterData.asset,
-                adapterData.value
-            );
+            revert MissingFee(MASTER_PUBLIC_KEY, d.random, d.asset, d.value);
     }
 
     /// Calculate the commitment hash for the fee transfer based on the MPK, random, asset, and value.
