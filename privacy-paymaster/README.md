@@ -12,9 +12,9 @@ Tests and deploy scripts read `SEPOLIA_RPC_URL` from the environment. CI supplie
 
 ## Deployment
 
-Each protocol has its own paymaster, which must be staked and funded separately. The deploy scripts print the deployed address; pass it to the stake and withdraw scripts as `PAYMASTER_ADDRESS`.
+Each protocol has its own paymaster, which must be staked and funded separately. The deploy scripts print and return the deployed addresses.
 
-```
+```bash
 forge script DeployTornado --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
 forge script DeployRailgun --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
 forge script DeployPrivacyPools --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
