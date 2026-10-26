@@ -53,6 +53,8 @@ contract TornadoPaymaster is BasePrivacyPaymaster {
     ) BasePrivacyPaymaster(_entryPoint, _factory, _weth, _twapPeriod) {}
 
     // ----- ADMIN -----
+
+    /// Allows or disallows a Tornado instance.
     function setInstance(
         ITornadoInstance instance,
         bool allowed
@@ -66,9 +68,15 @@ contract TornadoPaymaster is BasePrivacyPaymaster {
     }
 
     // ----- BasePrivacyPaymaster -----
+
+    /// Withdraws from the instance with this paymaster as the relayer.
     function _collectFee(
         PackedUserOperation calldata userOp
-    ) internal override returns (address, uint256, address) {
+    )
+        internal
+        override
+        returns (address feeToken, uint256 feePaid, address refundRecipient)
+    {
         PaymasterData memory d = abi.decode(
             _paymasterData(userOp),
             (PaymasterData)
@@ -76,7 +84,7 @@ contract TornadoPaymaster is BasePrivacyPaymaster {
         // Only allowlisted instances are trusted to actually pay the fee.
         Instance memory instance = instances[d.instance];
         if (!instance.allowed) revert InstanceNotAllowed(address(d.instance));
-        _checkCallGasLimit(userOp, d.recipient);
+        _requireSenderIsRecipientOrNoCalls(userOp, d.recipient);
 
         d.instance.withdraw(
             d.proof,
@@ -90,7 +98,9 @@ contract TornadoPaymaster is BasePrivacyPaymaster {
         return (instance.token, d.fee, d.recipient);
     }
 
-    /// ERC20Tornado exposes a `token()` getter, ETHTornado does not.
+    /// Returns the instance's ERC20, or address(0) for ETH instances.
+    ///
+    /// Only ERC20Tornado has a `token()` getter.
     function _instanceToken(
         ITornadoInstance instance
     ) internal view returns (address) {

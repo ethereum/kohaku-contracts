@@ -93,6 +93,8 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     receive() external payable {}
 
     // ----- ADMIN -----
+
+    /// Sets the markup charged on top of the gas cost.
     function setMarkup(
         uint256 _markupBps
         // aderyn-ignore-next-line(centralization-risk)
@@ -101,6 +103,10 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
         emit MarkupSet(_markupBps);
     }
 
+    /// Allows or disallows an ERC20 as a fee token.
+    ///
+    /// @param uniswapFee Fee tier of the token's Uniswap V3 pool with WETH,
+    ///        used for pricing. Ignored when disallowing.
     function setFeeToken(
         address token,
         uint24 uniswapFee,
@@ -117,12 +123,16 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
         emit FeeTokenSet(token, allowed);
     }
 
+    /// Sends this contract's ETH balance to `to`.
+    ///
+    /// Doesn't touch the EntryPoint deposit; use `withdrawTo` for that.
     // aderyn-ignore-next-line(centralization-risk)
     function sweep(address payable to) external onlyOwner {
         (bool ok, ) = to.call{value: address(this).balance}("");
         require(ok, "sweep failed");
     }
 
+    /// Sends this contract's balance of `token` to `to`.
     // aderyn-ignore-next-line(centralization-risk)
     function sweepERC20(IERC20 token, address to) external onlyOwner {
         uint256 balance = token.balanceOf(address(this));
@@ -130,6 +140,10 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     }
 
     // ----- BasePaymaster -----
+
+    /// Collects the fee and checks it covers `maxCost` plus markup.
+    ///
+    /// Returns an empty context when there's nothing to refund.
     function _validatePaymasterUserOp(
         PackedUserOperation calldata userOp,
         bytes32,
@@ -162,11 +176,10 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
         return (context, 0);
     }
 
-    /// Only called by the EntryPoint when validation returned a context.
+    /// Refunds the unused part of the fee.
     ///
-    /// `actualGasCost` excludes this postOp's own gas and its unused-gas
-    /// penalty, so the full `postOpGasLimit` is charged on top. That covers
-    /// both, since the penalty is at most 10% of the unused limit.
+    /// `actualGasCost` excludes postOp's own gas and unused-gas penalty, so
+    /// the full `postOpGasLimit` is charged to cover both.
     function _postOp(
         PostOpMode,
         bytes calldata context,
@@ -180,18 +193,19 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
         uint256 refund = _refundAmount(ctx, gasCost);
         if (refund == 0) return;
 
-        if (!_tryTransfer(ctx.feeToken, ctx.refundRecipient, refund)) {
+        if (!_trySafeTransfer(ctx.feeToken, ctx.refundRecipient, refund)) {
             emit RefundFailed(ctx.refundRecipient, ctx.feeToken, refund);
         }
     }
 
-    /// Quotes `weiAmount` in `feeToken`, including the markup. ERC20 tokens
-    /// are priced with the Uniswap V3 TWAP against WETH, and revert unless
-    /// allowed.
+    /// Quotes `weiAmount` in `feeToken`, including the markup.
+    ///
+    /// ETH and WETH are 1:1. Other tokens use their Uniswap V3 TWAP and
+    /// revert unless allowed.
     function quoteWeiInToken(
         address feeToken,
         uint256 weiAmount
-    ) public view returns (uint256) {
+    ) public view returns (uint256 tokenAmount) {
         uint256 amount = (weiAmount * (BPS + markupBps)) / BPS;
         if (feeToken == address(0) || feeToken == WETH) return amount;
 
@@ -210,12 +224,10 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
 
     // ----- PROTOCOL HOOKS -----
 
-    /// Executes the protocol withdrawal, which must pay this paymaster's fee.
+    /// Executes the protocol withdrawal, which pays this paymaster's fee.
     ///
-    /// @return feeToken The token the fee was paid in, or address(0) for ETH.
-    /// @return feePaid The amount of `feeToken` paid to this paymaster.
-    /// @return refundRecipient Where excess fees are refunded in postOp, or
-    ///         address(0) for no refund.
+    /// `feeToken` is address(0) for ETH. `refundRecipient` is address(0) for
+    /// no refund.
     ///
     /// @dev Must revert unless the fee has been paid.
     function _collectFee(
@@ -227,18 +239,18 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
 
     // ----- HELPERS -----
 
-    /// The protocol-specific data following the paymaster's static fields.
+    /// Returns the protocol-specific part of `paymasterAndData`.
     function _paymasterData(
         PackedUserOperation calldata userOp
     ) internal pure returns (bytes calldata) {
         return userOp.paymasterAndData[UserOperationLib.PAYMASTER_DATA_OFFSET:];
     }
 
-    /// Anti-griefing: either the withdrawal recipient is the userOp sender
-    /// (so it may perform secondary actions like a DEX swap), or the op
-    /// may not execute any calls. Otherwise a third party could attach
-    /// expensive calls to someone else's withdrawal.
-    function _checkCallGasLimit(
+    /// Reverts if the op makes calls but isn't the withdrawal's recipient.
+    ///
+    /// Stops third parties attaching expensive calls to someone else's
+    /// withdrawal. Recipients may still make calls, e.g. to swap.
+    function _requireSenderIsRecipientOrNoCalls(
         PackedUserOperation calldata userOp,
         address recipient
     ) internal pure {
@@ -248,9 +260,8 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
         }
     }
 
-    /// Transfers `amount` of `token` (address(0) for ETH), returning false
-    /// instead of reverting on failure.
-    function _tryTransfer(
+    /// Transfers `token` (address(0) for ETH), returning false on failure.
+    function _trySafeTransfer(
         address token,
         address to,
         uint256 amount
@@ -262,12 +273,13 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
         return IERC20(token).trySafeTransfer(to, amount);
     }
 
-    /// The part of the fee not needed to cover `gasCost`, converting at the
-    /// rate locked in during validation and rounding in the paymaster's favour.
+    /// Returns the part of the fee not needed to cover `gasCost`.
+    ///
+    /// Prices `gasCost` at the validation-time rate, rounding up.
     function _refundAmount(
         PostOpContext memory ctx,
         uint256 gasCost
-    ) internal pure returns (uint256) {
+    ) internal pure returns (uint256 refund) {
         uint256 cost = Math.mulDiv(
             gasCost,
             ctx.maxCostInToken,

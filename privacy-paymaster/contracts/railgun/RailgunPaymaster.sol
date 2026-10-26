@@ -59,9 +59,17 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
     }
 
     // ----- BasePrivacyPaymaster -----
+
+    /// Executes the Railgun transactions, one of which pays this paymaster.
+    ///
+    /// The fee is shielded, so it can't be refunded.
     function _collectFee(
         PackedUserOperation calldata userOp
-    ) internal override returns (address, uint256, address) {
+    )
+        internal
+        override
+        returns (address feeToken, uint256 feePaid, address refundRecipient)
+    {
         PaymasterData memory d = abi.decode(
             _paymasterData(userOp),
             (PaymasterData)
@@ -72,12 +80,9 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
         return (d.asset, d.value, address(0));
     }
 
-    /// Verifies the provided railgun transactions
+    /// Reverts unless the transactions are bound to `sender` and pay the fee.
     ///
-    /// All transactions must have their boundParams.adaptParams set to the sender's address to
-    /// prevent griefing attacks against users.
-    ///
-    /// At least one transaction must include a commitment matching the expected commitment for the fee transfer.
+    /// Binding `adaptParams` to the sender stops others submitting them.
     function _verifyTransactions(
         address sender,
         PaymasterData memory d
@@ -108,8 +113,7 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
             revert MissingFee(MASTER_PUBLIC_KEY, d.random, d.asset, d.value);
     }
 
-    /// Calculate the commitment hash for a fee transfer of `value` `asset` to
-    /// the paymaster's railgun wallet.
+    /// Returns the commitment for a fee transfer to this paymaster.
     function _hashCommitment(
         bytes16 random,
         address asset,

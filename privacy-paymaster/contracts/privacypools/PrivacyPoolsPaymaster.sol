@@ -65,6 +65,8 @@ contract PrivacyPoolsPaymaster is BasePrivacyPaymaster {
     ) BasePrivacyPaymaster(_entryPoint, _factory, _weth, _twapPeriod) {}
 
     // ----- ADMIN -----
+
+    /// Allows or disallows a Privacy Pools pool.
     function setPool(
         IPrivacyPool pool,
         bool allowed
@@ -79,9 +81,18 @@ contract PrivacyPoolsPaymaster is BasePrivacyPaymaster {
     }
 
     // ----- BasePrivacyPaymaster -----
+
+    /// Withdraws from the pool, keeps the fee, and forwards the rest.
+    ///
+    /// Measures the amount received by balance change, so fee-on-transfer
+    /// tokens work.
     function _collectFee(
         PackedUserOperation calldata userOp
-    ) internal override returns (address, uint256, address) {
+    )
+        internal
+        override
+        returns (address feeToken, uint256 feePaid, address refundRecipient)
+    {
         PaymasterData memory d = abi.decode(
             _paymasterData(userOp),
             (PaymasterData)
@@ -91,9 +102,8 @@ contract PrivacyPoolsPaymaster is BasePrivacyPaymaster {
         if (!pool.allowed) revert PoolNotAllowed(address(d.pool));
 
         FeeData memory feeData = abi.decode(d.withdrawal.data, (FeeData));
-        _checkCallGasLimit(userOp, feeData.recipient);
+        _requireSenderIsRecipientOrNoCalls(userOp, feeData.recipient);
 
-        // The balance delta is the source of truth (robust to fee-on-transfer).
         uint256 balanceBefore = _balance(pool.asset);
         d.pool.withdraw(d.withdrawal, d.proof);
         uint256 received = _balance(pool.asset) - balanceBefore;
@@ -101,12 +111,13 @@ contract PrivacyPoolsPaymaster is BasePrivacyPaymaster {
             revert FeeExceedsWithdrawal(feeData.fee, received);
         }
 
-        if (!_tryTransfer(pool.asset, feeData.recipient, received - feeData.fee)) {
+        if (!_trySafeTransfer(pool.asset, feeData.recipient, received - feeData.fee)) {
             revert PayoutFailed();
         }
         return (pool.asset, feeData.fee, feeData.recipient);
     }
 
+    /// Returns this contract's balance of `asset` (address(0) for ETH).
     function _balance(address asset) internal view returns (uint256) {
         if (asset == address(0)) return address(this).balance;
         return IERC20(asset).balanceOf(address(this));
