@@ -19,6 +19,7 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {
     IUniswapV3Factory
 } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
@@ -51,6 +52,13 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     }
 
     uint256 internal constant BPS = 10_000;
+
+    /// Slot of the simulation flag, which skips the fee check.
+    ///
+    /// Never written on-chain. Only read when the fee is short, so simulation 
+    /// costs slightly more.
+    bytes32 public constant SIMULATE_SLOT =
+        keccak256("privacy-paymaster.simulate");
 
     // ----- ERRORS -----
     error FeeTokenNotAllowed(address feeToken);
@@ -156,7 +164,10 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
         ) = _collectFee(userOp);
 
         uint256 maxCostInToken = quoteWeiInToken(feeToken, maxCost);
-        if (feePaid < maxCostInToken) {
+        if (
+            feePaid < maxCostInToken &&
+            !StorageSlot.getBooleanSlot(SIMULATE_SLOT).value
+        ) {
             revert InsufficientFee(maxCostInToken, feePaid);
         }
 
