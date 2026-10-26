@@ -55,8 +55,8 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
 
     /// Slot of the simulation flag, which skips the fee check.
     ///
-    /// Never written on-chain. Set it with a state override when estimating
-    /// gas. Reading it on every validation keeps gas the same either way.
+    /// Never written on-chain. Only read when the fee is short, so simulation 
+    /// costs slightly more.
     bytes32 public constant SIMULATE_SLOT =
         keccak256("privacy-paymaster.simulate");
 
@@ -164,8 +164,10 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
         ) = _collectFee(userOp);
 
         uint256 maxCostInToken = quoteWeiInToken(feeToken, maxCost);
-        bool simulate = StorageSlot.getBooleanSlot(SIMULATE_SLOT).value;
-        if (feePaid < maxCostInToken && !simulate) {
+        if (
+            feePaid < maxCostInToken &&
+            !StorageSlot.getBooleanSlot(SIMULATE_SLOT).value
+        ) {
             revert InsufficientFee(maxCostInToken, feePaid);
         }
 

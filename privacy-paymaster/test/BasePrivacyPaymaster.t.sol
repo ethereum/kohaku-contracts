@@ -213,7 +213,7 @@ contract BasePrivacyPaymasterTest is Test {
         uint256 simulatedGas = _validateGas(0.5 ether);
 
         assertGe(simulatedGas, normalGas);
-        assertApproxEqAbs(simulatedGas, normalGas, 50);
+        assertApproxEqAbs(simulatedGas, normalGas, 2_500);
     }
 
     // ----- postOp -----
