@@ -7,7 +7,6 @@ import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/Pac
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 import {BasePrivacyPaymaster} from "../../contracts/BasePrivacyPaymaster.sol";
 import {IPrivacyPool} from "../../contracts/privacypools/interfaces/IPrivacyPool.sol";
@@ -15,40 +14,18 @@ import {IPrivacyPool} from "../../contracts/privacypools/interfaces/IPrivacyPool
 /// Paymaster whose `_collectFee` returns configurable values without
 /// touching any protocol.
 contract MockPaymaster is BasePrivacyPaymaster {
-    address internal feeToken;
     uint256 internal feePaid;
     address internal refundRecipient;
 
-    constructor(IEntryPoint _entryPoint, IUniswapV3Factory _factory, address _weth, uint32 _twapPeriod)
-        BasePrivacyPaymaster(_entryPoint, _factory, _weth, _twapPeriod)
-    {}
+    constructor(IEntryPoint _entryPoint) BasePrivacyPaymaster(_entryPoint) {}
 
-    function setFee(address _feeToken, uint256 _feePaid, address _refundRecipient) external {
-        feeToken = _feeToken;
+    function setFee(uint256 _feePaid, address _refundRecipient) external {
         feePaid = _feePaid;
         refundRecipient = _refundRecipient;
     }
 
-    function refundAmount(PostOpContext memory ctx, uint256 gasCost) external pure returns (uint256) {
-        return _refundAmount(ctx, gasCost);
-    }
-
-    function _collectFee(PackedUserOperation calldata) internal view override returns (address, uint256, address) {
-        return (feeToken, feePaid, refundRecipient);
-    }
-
-    function test() public {}
-}
-
-contract MockFactory {
-    mapping(bytes32 => address) internal _pools;
-
-    function setPool(address tokenA, address tokenB, uint24 fee, address pool) external {
-        _pools[keccak256(abi.encode(tokenA, tokenB, fee))] = pool;
-    }
-
-    function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address) {
-        return _pools[keccak256(abi.encode(tokenA, tokenB, fee))];
+    function _collectFee(PackedUserOperation calldata) internal view override returns (uint256, address) {
+        return (feePaid, refundRecipient);
     }
 
     function test() public {}

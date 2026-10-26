@@ -3,10 +3,6 @@ chain_id = 31337
 [protocols.erc4337]
 entry_point = "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108"
 
-[protocols.uniswap_v3]
-factory = "0x0227628f3F023bb0B980b67D528571c95c6DaC1c"
-twap_period = 3600
-
 [protocols.tornado.eth_1]
 instance = "0x8cc930096B4Df705A007c4A039BDFA1320Ed2508"
 denomination = "1000000000000000000"

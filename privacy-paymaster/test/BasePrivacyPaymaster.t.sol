@@ -9,15 +9,12 @@ import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/Pac
 import {IPaymaster} from "@account-abstraction/contracts/interfaces/IPaymaster.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 import {BasePrivacyPaymaster} from "../contracts/BasePrivacyPaymaster.sol";
-import {MockPaymaster, MockFactory, MockERC20, RejectEther} from "./mocks/Mocks.sol";
+import {MockPaymaster, MockERC20, RejectEther} from "./mocks/Mocks.sol";
 
 contract BasePrivacyPaymasterTest is Test {
     EntryPoint internal entryPoint;
-    MockFactory internal factory;
-    MockERC20 internal weth;
     MockPaymaster internal paymaster;
 
     address internal sender = address(0x5EDE2);
@@ -26,11 +23,7 @@ contract BasePrivacyPaymasterTest is Test {
 
     function setUp() public {
         entryPoint = new EntryPoint();
-        factory = new MockFactory();
-        weth = new MockERC20();
-        paymaster = new MockPaymaster(
-            IEntryPoint(address(entryPoint)), IUniswapV3Factory(address(factory)), address(weth), 300
-        );
+        paymaster = new MockPaymaster(IEntryPoint(address(entryPoint)));
     }
 
     // ----- Helpers -----
@@ -45,68 +38,31 @@ contract BasePrivacyPaymasterTest is Test {
         (ctx,) = paymaster.validatePaymasterUserOp(_buildUserOp(), bytes32(0), maxCost);
     }
 
-    function _postOp(bytes memory ctx, uint256 actualGasCost) internal {
+    function _postOp(bytes memory ctx, uint256 actualGasCost, uint256 feePerGas) internal {
         vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, actualGasCost, 0);
-    }
-
-    // ----- Constructor -----
-
-    function test_constructor_defaultTokensAllowed() public view {
-        (bool ethAllowed,) = paymaster.feeTokens(address(0));
-        (bool wethAllowed,) = paymaster.feeTokens(address(weth));
-        assertTrue(ethAllowed);
-        assertTrue(wethAllowed);
-        assertEq(paymaster.markupBps(), 0);
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, actualGasCost, feePerGas);
     }
 
     // ----- Admin -----
-
-    function test_admin_rejectsNonOwner() public {
-        bytes memory err = abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner);
-
-        vm.startPrank(notOwner);
-        vm.expectRevert(err);
-        paymaster.setFeeToken(address(weth), 3000, true);
-        vm.expectRevert(err);
-        paymaster.setTwapPeriod(1);
-        vm.expectRevert(err);
-        paymaster.setMarkup(1);
-        vm.expectRevert(err);
-        paymaster.sweep(payable(notOwner));
-        vm.expectRevert(err);
-        paymaster.sweepERC20(IERC20(address(weth)), notOwner);
-        vm.stopPrank();
-    }
-
-    function test_setFeeToken_erc20() public {
-        MockERC20 token = new MockERC20();
-        factory.setPool(address(token), address(weth), 3000, address(0x1234));
-
-        paymaster.setFeeToken(address(token), 3000, true);
-
-        (bool allowed, address pool) = paymaster.feeTokens(address(token));
-        assertTrue(allowed);
-        assertEq(pool, address(0x1234));
-    }
-
-    function test_setFeeToken_revertsIfPoolMissing() public {
-        address token = address(new MockERC20());
-        vm.expectRevert("pool not supported");
-        paymaster.setFeeToken(token, 3000, true);
-    }
-
-    function test_setFeeToken_disabledSkipsPoolLookup() public {
-        paymaster.setFeeToken(address(weth), 3000, false);
-        (bool allowed,) = paymaster.feeTokens(address(weth));
-        assertFalse(allowed);
-    }
 
     function test_setMarkup() public {
         vm.expectEmit(false, false, false, true);
         emit BasePrivacyPaymaster.MarkupSet(500);
         paymaster.setMarkup(500);
         assertEq(paymaster.markupBps(), 500);
+    }
+
+    function test_admin_rejectsNonOwner() public {
+        bytes memory err = abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner);
+
+        vm.startPrank(notOwner);
+        vm.expectRevert(err);
+        paymaster.setMarkup(1);
+        vm.expectRevert(err);
+        paymaster.sweep(payable(notOwner));
+        vm.expectRevert(err);
+        paymaster.sweepERC20(IERC20(address(0)), notOwner);
+        vm.stopPrank();
     }
 
     function test_sweep() public {
@@ -116,35 +72,28 @@ contract BasePrivacyPaymasterTest is Test {
     }
 
     function test_sweepERC20() public {
-        weth.mint(address(paymaster), 1 ether);
-        paymaster.sweepERC20(IERC20(address(weth)), recipient);
-        assertEq(weth.balanceOf(recipient), 1 ether);
+        MockERC20 token = new MockERC20();
+        token.mint(address(paymaster), 1 ether);
+        paymaster.sweepERC20(IERC20(address(token)), recipient);
+        assertEq(token.balanceOf(recipient), 1 ether);
     }
 
     // ----- Quoting -----
 
-    function test_quoteWeiInToken_ethAndWethAreOneToOne() public view {
-        assertEq(paymaster.quoteWeiInToken(address(0), 1 ether), 1 ether);
-        assertEq(paymaster.quoteWeiInToken(address(weth), 1 ether), 1 ether);
+    function test_quoteFee_noMarkup() public view {
+        assertEq(paymaster.quoteFee(1 ether), 1 ether);
     }
 
-    function test_quoteWeiInToken_appliesMarkup() public {
+    function test_quoteFee_appliesMarkupRoundingUp() public {
         paymaster.setMarkup(1_000); // 10%
-        assertEq(paymaster.quoteWeiInToken(address(0), 1 ether), 1.1 ether);
+        assertEq(paymaster.quoteFee(1 ether), 1.1 ether);
+        assertEq(paymaster.quoteFee(1), 2);
     }
 
     // ----- Validation -----
 
-    function test_validate_feeTokenNotAllowed() public {
-        address token = address(new MockERC20());
-        paymaster.setFee(token, 1 ether, address(0));
-
-        vm.expectRevert(abi.encodeWithSelector(BasePrivacyPaymaster.FeeTokenNotAllowed.selector, token));
-        _validate(0.5 ether);
-    }
-
     function test_validate_insufficientFee() public {
-        paymaster.setFee(address(0), 0.1 ether, address(0));
+        paymaster.setFee(0.1 ether, address(0));
 
         vm.expectRevert(abi.encodeWithSelector(BasePrivacyPaymaster.InsufficientFee.selector, 0.5 ether, 0.1 ether));
         _validate(0.5 ether);
@@ -152,32 +101,25 @@ contract BasePrivacyPaymasterTest is Test {
 
     function test_validate_insufficientFeeWithMarkup() public {
         paymaster.setMarkup(1_000); // 10%
-        paymaster.setFee(address(0), 0.5 ether, address(0));
+        paymaster.setFee(0.5 ether, address(0));
 
         vm.expectRevert(abi.encodeWithSelector(BasePrivacyPaymaster.InsufficientFee.selector, 0.55 ether, 0.5 ether));
         _validate(0.5 ether);
     }
 
     function test_validate_noContextWithoutRefundRecipient() public {
-        paymaster.setFee(address(0), 1 ether, address(0));
+        paymaster.setFee(1 ether, address(0));
         assertEq(_validate(0.5 ether).length, 0);
     }
 
-    function test_validate_noContextWhenGasIsFree() public {
-        paymaster.setFee(address(0), 1 ether, recipient);
-        assertEq(_validate(0).length, 0);
-    }
-
     function test_validate_returnsContext() public {
-        paymaster.setFee(address(0), 1 ether, recipient);
+        paymaster.setFee(1 ether, recipient);
         BasePrivacyPaymaster.PostOpContext memory ctx =
             abi.decode(_validate(0.5 ether), (BasePrivacyPaymaster.PostOpContext));
 
-        assertEq(ctx.feeToken, address(0));
         assertEq(ctx.feePaid, 1 ether);
         assertEq(ctx.refundRecipient, recipient);
-        assertEq(ctx.maxCost, 0.5 ether);
-        assertEq(ctx.maxCostInToken, 0.5 ether);
+        assertEq(ctx.postOpGasLimit, 50_000);
     }
 
     function test_validate_rejectsNonEntryPoint() public {
@@ -187,43 +129,41 @@ contract BasePrivacyPaymasterTest is Test {
 
     // ----- postOp -----
 
-    function test_postOp_refundsExcessEth() public {
-        paymaster.setFee(address(0), 1 ether, recipient);
+    function test_postOp_refundsExcess() public {
+        paymaster.setFee(1 ether, recipient);
         vm.deal(address(paymaster), 1 ether);
 
-        _postOp(_validate(0.5 ether), 0.2 ether);
+        _postOp(_validate(0.5 ether), 0.2 ether, 0);
 
         assertEq(recipient.balance, 0.8 ether);
         assertEq(address(paymaster).balance, 0.2 ether);
     }
 
-    function test_postOp_refundsExcessWeth() public {
-        paymaster.setFee(address(weth), 1 ether, recipient);
-        weth.mint(address(paymaster), 1 ether);
-
-        _postOp(_validate(0.5 ether), 0.2 ether);
-
-        assertEq(weth.balanceOf(recipient), 0.8 ether);
-        assertEq(weth.balanceOf(address(paymaster)), 0.2 ether);
-    }
-
     function test_postOp_chargesPostOpGasLimit() public {
-        paymaster.setFee(address(0), 1 ether, recipient);
+        paymaster.setFee(1 ether, recipient);
         vm.deal(address(paymaster), 1 ether);
-        bytes memory ctx = _validate(0.5 ether);
 
         // 0.2 ether actual cost + 50_000 postOpGasLimit * 1 gwei
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 0.2 ether, 1 gwei);
+        _postOp(_validate(0.5 ether), 0.2 ether, 1 gwei);
 
         assertEq(recipient.balance, 0.79995 ether);
     }
 
-    function test_postOp_noRefundWhenCostEqualsFee() public {
-        paymaster.setFee(address(0), 1 ether, recipient);
+    function test_postOp_chargesMarkup() public {
+        paymaster.setMarkup(1_000); // 10%
+        paymaster.setFee(1 ether, recipient);
         vm.deal(address(paymaster), 1 ether);
 
-        _postOp(_validate(1 ether), 1 ether);
+        _postOp(_validate(0.5 ether), 0.2 ether, 0);
+
+        assertEq(recipient.balance, 0.78 ether);
+    }
+
+    function test_postOp_noRefundWhenCostCoversFee() public {
+        paymaster.setFee(1 ether, recipient);
+        vm.deal(address(paymaster), 1 ether);
+
+        _postOp(_validate(1 ether), 1 ether, 0);
 
         assertEq(recipient.balance, 0);
         assertEq(address(paymaster).balance, 1 ether);
@@ -231,13 +171,13 @@ contract BasePrivacyPaymasterTest is Test {
 
     function test_postOp_refundFailureEmitsEvent() public {
         address rejecter = address(new RejectEther());
-        paymaster.setFee(address(0), 1 ether, rejecter);
+        paymaster.setFee(1 ether, rejecter);
         vm.deal(address(paymaster), 1 ether);
         bytes memory ctx = _validate(0.5 ether);
 
-        vm.expectEmit(true, true, false, true);
-        emit BasePrivacyPaymaster.RefundFailed(rejecter, address(0), 0.8 ether);
-        _postOp(ctx, 0.2 ether);
+        vm.expectEmit(true, false, false, true);
+        emit BasePrivacyPaymaster.RefundFailed(rejecter, 0.8 ether);
+        _postOp(ctx, 0.2 ether, 0);
 
         assertEq(address(paymaster).balance, 1 ether);
     }
@@ -245,25 +185,5 @@ contract BasePrivacyPaymasterTest is Test {
     function test_postOp_rejectsNonEntryPoint() public {
         vm.expectRevert("Sender not EntryPoint");
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, "", 0, 0);
-    }
-
-    // ----- _refundAmount -----
-
-    function testFuzz_refundAmount_neverExceedsFee(
-        uint128 feePaid,
-        uint128 maxCost,
-        uint128 maxCostInToken,
-        uint128 gasCost
-    ) public view {
-        vm.assume(maxCost > 0);
-        BasePrivacyPaymaster.PostOpContext memory ctx = BasePrivacyPaymaster.PostOpContext({
-            feeToken: address(0),
-            feePaid: feePaid,
-            refundRecipient: recipient,
-            maxCost: maxCost,
-            maxCostInToken: maxCostInToken,
-            postOpGasLimit: 0
-        });
-        assertLe(paymaster.refundAmount(ctx, gasCost), feePaid);
     }
 }

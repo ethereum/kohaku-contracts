@@ -29,10 +29,6 @@ library RailgunFixtures {
         return bytes16(0x1b82476ce9817694ef807ea954599948);
     }
 
-    function loadAsset() internal pure returns (address) {
-        return 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
-    }
-
     function loadValue() internal pure returns (uint120) {
         return 2158605619427450;
     }

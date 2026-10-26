@@ -14,7 +14,6 @@ By following these two principles, we eliminate any user attack surface and mini
 | Validation guarantees spendability                   | Validation is the check performed by pools to allow spendability                | `validatePaymasterUserOp` passes but `executeUserOp` fails                                           |
 | Validation fits in MAX_VERIFICATION_GAS              | Holds true for TC, Privacy Pools, and Railgun                                   | Incompatible with said privacy protocol                                                              |
 | Staked paymaster can read privacy protocol's storage | [STO-033](eips.ethereum.org/EIPS/eip-7562#storage-rules)                        |                                                                                                      |
-| Bundlers allow TIMESTAMP in validation (ERC20 fees)  | ERC20 fee quotes read a Uniswap V3 TWAP, which uses `block.timestamp`. Violates [OP-011](https://eips.ethereum.org/EIPS/eip-7562#opcode-rules); ETH/WETH fees are unaffected. | Spec-compliant bundlers reject ops paying in ERC20s |
 | Bundlers are frontrun-protected                      | Economic incentives to do so. Similar risk is present in all erc-20 paymasters. | Third parties can frontrun bundles after simulation and invalidate proofs, leading to bundler losses |
 
 ## Risks

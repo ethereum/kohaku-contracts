@@ -6,7 +6,6 @@ import {Test} from "forge-std/Test.sol";
 import {EntryPoint} from "@account-abstraction/contracts/core/EntryPoint.sol";
 import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
-import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 import {BasePrivacyPaymaster} from "../contracts/BasePrivacyPaymaster.sol";
 import {IPrivacyPool} from "../contracts/privacypools/interfaces/IPrivacyPool.sol";
@@ -21,21 +20,13 @@ contract PrivacyPoolsPaymasterTest is Test {
     EntryPoint internal entryPoint;
     PrivacyPoolsPaymaster internal paymaster;
     MockPrivacyPool internal nativePool;
-    MockPrivacyPool internal erc20Pool;
-    MockERC20 internal token;
 
     function setUp() public {
         entryPoint = new EntryPoint();
-        // Use the ERC20 as WETH so it's priced 1:1 without an oracle.
-        token = new MockERC20();
-        paymaster = new PrivacyPoolsPaymaster(
-            IEntryPoint(address(entryPoint)), IUniswapV3Factory(address(0)), address(token), 300
-        );
+        paymaster = new PrivacyPoolsPaymaster(IEntryPoint(address(entryPoint)));
 
         nativePool = new MockPrivacyPool(NATIVE_ASSET);
-        erc20Pool = new MockPrivacyPool(address(token));
         paymaster.setPool(nativePool, true);
-        paymaster.setPool(erc20Pool, true);
     }
 
     // ----- Helpers -----
@@ -82,13 +73,19 @@ contract PrivacyPoolsPaymasterTest is Test {
 
     // ----- Admin -----
 
-    function test_setPool_normalizesNativeAsset() public view {
-        (bool allowed, address asset) = paymaster.pools(nativePool);
-        assertTrue(allowed);
-        assertEq(asset, address(0));
+    function test_setPool() public view {
+        assertTrue(paymaster.pools(nativePool));
+    }
 
-        (, asset) = paymaster.pools(erc20Pool);
-        assertEq(asset, address(token));
+    function test_setPool_rejectsErc20Pool() public {
+        MockPrivacyPool erc20Pool = new MockPrivacyPool(address(new MockERC20()));
+        vm.expectRevert(abi.encodeWithSelector(PrivacyPoolsPaymaster.NotEthPool.selector, address(erc20Pool)));
+        paymaster.setPool(erc20Pool, true);
+    }
+
+    function test_setPool_disallow() public {
+        paymaster.setPool(nativePool, false);
+        assertFalse(paymaster.pools(nativePool));
     }
 
     // ----- Validation -----
@@ -98,7 +95,6 @@ contract PrivacyPoolsPaymasterTest is Test {
         bytes memory context = _validate(_buildUserOp(nativePool, address(paymaster), 0.1 ether, 1 ether), 0.05 ether);
 
         BasePrivacyPaymaster.PostOpContext memory ctx = abi.decode(context, (BasePrivacyPaymaster.PostOpContext));
-        assertEq(ctx.feeToken, address(0));
         assertEq(ctx.feePaid, 0.1 ether);
         assertEq(ctx.refundRecipient, RECIPIENT);
         assertEq(address(paymaster).balance, 0.1 ether);
@@ -111,16 +107,6 @@ contract PrivacyPoolsPaymasterTest is Test {
 
         assertEq(address(paymaster).balance, 1 ether);
         assertEq(RECIPIENT.balance, 0);
-    }
-
-    function test_valid_erc20() public {
-        token.mint(address(erc20Pool), 100 ether);
-        bytes memory context = _validate(_buildUserOp(erc20Pool, address(paymaster), 5 ether, 100 ether), 1 ether);
-
-        BasePrivacyPaymaster.PostOpContext memory ctx = abi.decode(context, (BasePrivacyPaymaster.PostOpContext));
-        assertEq(ctx.feeToken, address(token));
-        assertEq(token.balanceOf(address(paymaster)), 5 ether);
-        assertEq(token.balanceOf(RECIPIENT), 95 ether);
     }
 
     function test_valid_recipientIsSenderAllowsCallGasLimit() public {

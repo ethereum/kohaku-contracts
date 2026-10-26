@@ -10,9 +10,6 @@ import {
 import {
     PackedUserOperation
 } from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
-import {
-    IUniswapV3Factory
-} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {
@@ -43,11 +40,7 @@ contract RailgunPaymasterForkTest is Test {
         vm.createSelectFork(vm.rpcUrl("sepolia"), RailgunFixtures.FORK_BLOCK);
 
         entryPointAddr = Chains.readAddress("protocols.erc4337", "entry_point");
-        address factory = Chains.readAddress("protocols.uniswap_v3", "factory");
         address weth = Chains.readAddress("tokens", "weth");
-        uint32 twapPeriod = uint32(
-            Chains.readUint("protocols.uniswap_v3", "twap_period")
-        );
         address smartWalletAddr = Chains.readAddress(
             "protocols.railgun",
             "smart_wallet"
@@ -76,10 +69,8 @@ contract RailgunPaymasterForkTest is Test {
 
         paymaster = new RailgunPaymaster(
             IEntryPoint(entryPointAddr),
-            IUniswapV3Factory(factory),
-            weth,
-            twapPeriod,
             railgun,
+            weth,
             masterPublicKey
         );
     }
@@ -95,7 +86,6 @@ contract RailgunPaymasterForkTest is Test {
         bytes memory paymasterData = abi.encode(
             RailgunPaymaster.PaymasterData({
                 random: RailgunFixtures.loadRandom(),
-                asset: RailgunFixtures.loadAsset(),
                 value: RailgunFixtures.loadValue(),
                 transactions: transactions
             })
@@ -157,7 +147,6 @@ contract RailgunPaymasterForkTest is Test {
                 RailgunPaymaster.MissingFee.selector,
                 masterPublicKey,
                 RailgunFixtures.loadRandom(),
-                RailgunFixtures.loadAsset(),
                 RailgunFixtures.loadValue()
             )
         );

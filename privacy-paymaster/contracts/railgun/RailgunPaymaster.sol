@@ -7,9 +7,6 @@ import {
 import {
     IEntryPoint
 } from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
-import {
-    IUniswapV3Factory
-} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 import {BasePrivacyPaymaster} from "../BasePrivacyPaymaster.sol";
 import {IRailgunSmartWallet} from "./interfaces/IRailgunSmartWallet.sol";
@@ -22,46 +19,41 @@ import {
 
 /// Paymaster for Railgun transactions.
 ///
-/// The fee is paid as a shielded transfer to the paymaster's railgun wallet,
-/// so it can't be refunded.
+/// The fee is paid in WETH (Railgun can't shield native ETH), counted 1:1
+/// with ETH, as a shielded transfer to the paymaster's railgun wallet. It
+/// can't be refunded.
 contract RailgunPaymaster is BasePrivacyPaymaster {
     struct PaymasterData {
         bytes16 random;
-        address asset;
         uint120 value;
         Transaction[] transactions;
     }
 
     // ----- ERRORS -----
     error AdaptParamsAreNotSender(bytes32 adaptParams, bytes32 sender);
-    error MissingFee(
-        bytes32 master_public_key,
-        bytes16 random,
-        address asset,
-        uint120 value
-    );
+    error MissingFee(bytes32 master_public_key, bytes16 random, uint120 value);
 
     /// ----- IMMUTABLES -----
     IRailgunSmartWallet public immutable RAILGUN_SMART_WALLET;
+    address public immutable WETH;
     /// The MPK for the paymaster's zk-wallet.
     bytes32 immutable MASTER_PUBLIC_KEY;
 
     constructor(
         IEntryPoint _entryPoint,
-        IUniswapV3Factory _factory,
-        address _weth,
-        uint32 _twapPeriod,
         IRailgunSmartWallet _railgunSmartWallet,
+        address _weth,
         bytes32 _masterPublicKey
-    ) BasePrivacyPaymaster(_entryPoint, _factory, _weth, _twapPeriod) {
+    ) BasePrivacyPaymaster(_entryPoint) {
         RAILGUN_SMART_WALLET = _railgunSmartWallet;
+        WETH = _weth;
         MASTER_PUBLIC_KEY = _masterPublicKey;
     }
 
     // ----- BasePrivacyPaymaster -----
     function _collectFee(
         PackedUserOperation calldata userOp
-    ) internal override returns (address, uint256, address) {
+    ) internal override returns (uint256, address) {
         PaymasterData memory d = abi.decode(
             _paymasterData(userOp),
             (PaymasterData)
@@ -70,7 +62,7 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
         RAILGUN_SMART_WALLET.transact(d.transactions);
 
         // TODO: Add an optional refund recipient in the PaymasterData struct
-        return (d.asset, d.value, address(0));
+        return (d.value, address(0));
     }
 
     /// Verifies the provided railgun transactions
@@ -86,7 +78,6 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
         bytes32 expectedCommitment = _hashCommitment(
             MASTER_PUBLIC_KEY,
             d.random,
-            d.asset,
             d.value
         );
 
@@ -107,14 +98,13 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
         }
 
         if (!commitmentFound)
-            revert MissingFee(MASTER_PUBLIC_KEY, d.random, d.asset, d.value);
+            revert MissingFee(MASTER_PUBLIC_KEY, d.random, d.value);
     }
 
-    /// Calculate the commitment hash for the fee transfer based on the MPK, random, asset, and value.
+    /// Calculate the commitment hash for the WETH fee transfer based on the MPK, random, and value.
     function _hashCommitment(
         bytes32 master_public_key,
         bytes16 random,
-        address asset,
         uint120 value
     ) internal view returns (bytes32) {
         bytes32 npk = RAILGUN_SMART_WALLET.hashLeftRight(
@@ -126,7 +116,7 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
             npk: npk,
             token: TokenData({
                 tokenType: TokenType.ERC20,
-                tokenAddress: asset,
+                tokenAddress: WETH,
                 tokenSubID: 0
             }),
             value: value
