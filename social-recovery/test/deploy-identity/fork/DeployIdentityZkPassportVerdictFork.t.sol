@@ -8,7 +8,7 @@ import {ZkPassportDigestBindFixture} from 'test/fixtures/zkpassport-digest/ZkPas
 import {DeployIdentityForkTestBase} from 'test/utils/DeployIdentityForkTestBase.sol';
 
 /// @notice A positive verdict through the zkPassport method as the identity script deploys it. On a Sepolia fork
-///         the script deploys the method with the table's words, and the method checks a real zkPassport 0.21.0
+///         the script deploys the method with the table's words, and the method checks a real zkPassport 0.21.1
 ///         bind proof whose custom data is the method's rendering of one fixed digest. The live root verifier,
 ///         sub-verifier, Honk verifier, circuit root check and verifier helper all run; only the root registry's check
 ///         of the proof's certificate root is mocked, because upstream's generator signed the proof with a test
@@ -16,9 +16,9 @@ import {DeployIdentityForkTestBase} from 'test/utils/DeployIdentityForkTestBase.
 ///         to the live route, accepts a proof that binds the recovery's digest. Each test skips cleanly when
 ///         SEPOLIA_RPC_URL is unset.
 contract DeployIdentityZkPassportVerdictForkTest is DeployIdentityForkTestBase, ZkPassportDigestBindFixture {
-  /// @notice The verification key hash under which the 0.21.0 sub-verifier registers its outer verifier for five
+  /// @notice The verification key hash under which the 0.21.1 sub-verifier registers its outer verifier for five
   ///         subproofs, the shape of the proof.
-  bytes32 internal constant _VKEY_HASH = 0x2eae578482e200bb70139dbe6e49450b9082f50321be975fd86f0e768a85be9f;
+  bytes32 internal constant _VKEY_HASH = 0x14765cfe42f6c72ea39d5c9be96c3e9a39b2e982ec5f0133749f88e0f00bcc27;
   /// @notice The registry id the root verifier passes to isRootValid for certificate roots.
   bytes32 internal constant _CERTIFICATE_REGISTRY_ID = bytes32(uint256(1));
   /// @notice The service the proof is scoped to, which its public inputs commit to.

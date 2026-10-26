@@ -5,16 +5,16 @@ import {IDeployIdentity} from 'script/IDeployIdentity.sol';
 import {DeployIdentityTestBase} from 'test/utils/DeployIdentityTestBase.sol';
 
 /// @notice The per-chain table the identity script reads every pin from. zkPassport ships on mainnet and Sepolia
-///         with the reviewed 0.21.0 route of each chain, and Aadhaar on Sepolia alone. A wrong address here would
+///         with the reviewed 0.21.1 route of each chain, and Aadhaar on Sepolia alone. A wrong address here would
 ///         point a method at a contract nobody reviewed, so each value is compared with the published table.
 contract DeployIdentityPinsForTest is DeployIdentityTestBase {
-  /// pinsFor(1) holds version 0.21.0, mainnet's root verifier, 0.21 sub-verifier, verifier helper and root registry,
+  /// pinsFor(1) holds version 0.21.1, mainnet's root verifier, 0.21.1 sub-verifier, verifier helper and root registry,
   /// and ships no Aadhaar method, so its verifier, code hash and key are zero. No Aadhaar verifier is published on
   /// mainnet.
   function test_WhenTheChainIsMainnet() external view {
     IDeployIdentity.Pins memory _table = _script.pinsFor(_MAINNET_CHAIN_ID);
-    // it should pin version 0.21.0 and mainnet's zkPassport route
-    assertEq(_table.acceptedVersion, _VERSION_0_21_0, 'accepted version');
+    // it should pin version 0.21.1 and mainnet's zkPassport route
+    assertEq(_table.acceptedVersion, _VERSION_0_21_1, 'accepted version');
     assertEq(_table.rootVerifier, _ROOT_VERIFIER, 'root verifier');
     assertEq(_table.subVerifier, _MAINNET_SUB_VERIFIER, 'sub-verifier');
     assertEq(_table.verifierHelper, _MAINNET_VERIFIER_HELPER, 'verifier helper');
@@ -26,13 +26,13 @@ contract DeployIdentityPinsForTest is DeployIdentityTestBase {
     assertEq(_table.aadhaarKey, bytes32(0), 'Aadhaar key');
   }
 
-  /// pinsFor(11155111) holds version 0.21.0, Sepolia's zkPassport route, and the Aadhaar method with the Sepolia
+  /// pinsFor(11155111) holds version 0.21.1, Sepolia's zkPassport route, and the Aadhaar method with the Sepolia
   /// Groth16 verifier, that verifier's code hash and the hash of UIDAI's current key, the values the Sepolia demo
   /// deploys with. The code hash lets the deployment tell the reviewed verifier from any other code.
   function test_WhenTheChainIsSepolia() external view {
     IDeployIdentity.Pins memory _table = _script.pinsFor(_SEPOLIA_CHAIN_ID);
-    // it should pin version 0.21.0 and sepolia's zkPassport route
-    assertEq(_table.acceptedVersion, _VERSION_0_21_0, 'accepted version');
+    // it should pin version 0.21.1 and sepolia's zkPassport route
+    assertEq(_table.acceptedVersion, _VERSION_0_21_1, 'accepted version');
     assertEq(_table.rootVerifier, _ROOT_VERIFIER, 'root verifier');
     assertEq(_table.subVerifier, _SEPOLIA_SUB_VERIFIER, 'sub-verifier');
     assertEq(_table.verifierHelper, _SEPOLIA_VERIFIER_HELPER, 'verifier helper');

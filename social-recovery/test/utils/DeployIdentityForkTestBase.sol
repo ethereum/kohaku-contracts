@@ -28,13 +28,13 @@ interface IDeployIdentityForkSubVerifier {
 /// @notice Shared setup for the identity deployment tests that need the real chains. Each test forks mainnet or
 ///         Sepolia at a pinned block, creates the script there, and skips cleanly when its endpoint is unset.
 abstract contract DeployIdentityForkTestBase is DeployIdentityTestBase {
-  /// @notice A finalized mainnet block, 2026-10-01, where zkPassport's root verifier routes version 0.21.0 to
+  /// @notice A finalized mainnet block, 2026-10-23, where zkPassport's root verifier routes version 0.21.1 to
   ///         the table's sub-verifier and verifier helper. Pinned so the tests do not depend on later chain state.
-  uint256 internal constant _MAINNET_FORK_BLOCK = 26_097_000;
-  /// @notice A Sepolia block of 2026-10-05, where the root verifier routes version 0.21.0 to the table's
+  uint256 internal constant _MAINNET_FORK_BLOCK = 26_255_983;
+  /// @notice A Sepolia block of 2026-10-23, where the root verifier routes version 0.21.1 to the table's
   ///         sub-verifier and verifier helper. It comes after the date of the digest bind proof in
   ///         test/fixtures/zkpassport-digest, so the live sub-verifier reads that proof as already made.
-  uint256 internal constant _SEPOLIA_FORK_BLOCK = 11_850_300;
+  uint256 internal constant _SEPOLIA_FORK_BLOCK = 11_977_408;
 
   /// @notice Forks `_envName`'s endpoint at `_block` and creates the script there. Returns false, after marking
   ///         the test skipped, when the endpoint is unset.

@@ -4,7 +4,7 @@ The files valid_proof.hex, valid_public_inputs.json and valid_committed_inputs.h
 directory were produced by running src/ts/scripts/generate-fixtures.ts from:
 
   repository: https://github.com/zkpassport/circuits
-  commit:     7b3614442419b5ee6fefe8b2bc077cb956284ad1
+  commit:     9682885268d631f1331513be88ba5646961f77f0
 
 Copyright 2025 ZKPassport
 
