@@ -12,16 +12,6 @@ interface IRailgunSmartWallet {
         CommitmentPreimage memory _commitmentPreimage
     ) external pure returns (bytes32);
 
-    // Commitment nullifiers (tree number -> nullifier -> seen)
-    function nullifiers(
-        uint256 treeNumber,
-        bytes32 nullifier
-    ) external view returns (bool);
-
-    function validateTransaction(
-        Transaction calldata _transaction
-    ) external view returns (bool, string memory);
-
     function shield(ShieldRequest[] calldata _shieldRequests) external;
     function transact(Transaction[] calldata _transactions) external;
 

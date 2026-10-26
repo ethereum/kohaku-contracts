@@ -17,4 +17,3 @@ const result = await deployPaymaster({
 });
 
 console.log(`Paymaster:      ${result.paymasterAddress}`);
-console.log(`TornadoAccount: ${result.tornadoAccountAddress}`);

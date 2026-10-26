@@ -15,24 +15,19 @@ import {
 } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {PaymasterLib} from "../contracts/libraries/PaymasterLib.sol";
-import {PrivacyPaymaster} from "../contracts/PrivacyPaymaster.sol";
 import {
     IRailgunSmartWallet
-} from "../contracts/fee_adapters/railgun/interfaces/IRailgunSmartWallet.sol";
-import {
-    RailgunFeeAdapter
-} from "../contracts/fee_adapters/railgun/RailgunFeeAdapter.sol";
+} from "../contracts/railgun/interfaces/IRailgunSmartWallet.sol";
+import {RailgunPaymaster} from "../contracts/railgun/RailgunPaymaster.sol";
 import {
     Transaction,
     ShieldRequest
-} from "../contracts/fee_adapters/railgun/Globals.sol";
+} from "../contracts/railgun/Globals.sol";
 import {RailgunFixtures} from "./fixtures/RailgunFixtures.sol";
 
-contract RailgunFeeAdapterForkTest is Test {
+contract RailgunPaymasterForkTest is Test {
     IRailgunSmartWallet internal railgun;
-    RailgunFeeAdapter internal adapter;
-    PrivacyPaymaster internal paymaster;
+    RailgunPaymaster internal paymaster;
     address internal entryPointAddr;
     bytes32 internal masterPublicKey;
 
@@ -79,14 +74,14 @@ contract RailgunFeeAdapterForkTest is Test {
         vm.prank(depositor);
         railgun.shield(requests);
 
-        adapter = new RailgunFeeAdapter(railgun, masterPublicKey);
-        paymaster = new PrivacyPaymaster(
+        paymaster = new RailgunPaymaster(
             IEntryPoint(entryPointAddr),
             IUniswapV3Factory(factory),
             weth,
-            twapPeriod
+            twapPeriod,
+            railgun,
+            masterPublicKey
         );
-        paymaster.setApprovedAdapter(address(adapter), true);
     }
 
     // ----- Helpers -----
@@ -97,18 +92,12 @@ contract RailgunFeeAdapterForkTest is Test {
         Transaction[] memory transactions = new Transaction[](1);
         transactions[0] = t;
 
-        bytes memory adapterData = abi.encode(
-            RailgunFeeAdapter.AdapterData({
+        bytes memory paymasterData = abi.encode(
+            RailgunPaymaster.PaymasterData({
                 random: RailgunFixtures.loadRandom(),
                 asset: RailgunFixtures.loadAsset(),
                 value: RailgunFixtures.loadValue(),
                 transactions: transactions
-            })
-        );
-        bytes memory paymasterData = abi.encode(
-            PaymasterLib.PaymasterData({
-                adapter: address(adapter),
-                adapterData: adapterData
             })
         );
         op.sender = address(0); // matches fixture's adaptParams = bytes32(0)
@@ -144,35 +133,11 @@ contract RailgunFeeAdapterForkTest is Test {
         op.sender = address(0xDEAD);
         vm.expectRevert(
             abi.encodeWithSelector(
-                RailgunFeeAdapter.AdaptParamsAreNotSender.selector,
+                RailgunPaymaster.AdaptParamsAreNotSender.selector,
                 bytes32(0),
-                address(0xDEAD)
+                bytes32(uint256(uint160(address(0xDEAD))))
             )
         );
-        vm.prank(entryPointAddr);
-        paymaster.validatePaymasterUserOp(
-            op,
-            bytes32(0),
-            uint256(RailgunFixtures.loadValue())
-        );
-    }
-
-    function test_malformedAdapterData() public {
-        bytes memory paymasterData = abi.encode(
-            PaymasterLib.PaymasterData({
-                adapter: address(adapter),
-                adapterData: hex"deadbeef"
-            })
-        );
-        PackedUserOperation memory op;
-        op.sender = address(0);
-        op.paymasterAndData = abi.encodePacked(
-            address(paymaster),
-            uint128(500_000),
-            uint128(50_000),
-            paymasterData
-        );
-        vm.expectRevert(RailgunFeeAdapter.MalformedAdapterData.selector);
         vm.prank(entryPointAddr);
         paymaster.validatePaymasterUserOp(
             op,
@@ -189,7 +154,7 @@ contract RailgunFeeAdapterForkTest is Test {
         PackedUserOperation memory op = _buildUserOp(t);
         vm.expectRevert(
             abi.encodeWithSelector(
-                RailgunFeeAdapter.MissingFee.selector,
+                RailgunPaymaster.MissingFee.selector,
                 masterPublicKey,
                 RailgunFixtures.loadRandom(),
                 RailgunFixtures.loadAsset(),

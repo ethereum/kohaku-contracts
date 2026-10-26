@@ -3,91 +3,71 @@ pragma solidity ^0.8.28;
 
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
-import {Deployments} from "./lib/Deployments.sol";
 import {Chains} from "./lib/Chains.sol";
+import {PaymasterSetup} from "./lib/PaymasterSetup.sol";
 
-import {PrivacyPaymaster} from "../contracts/PrivacyPaymaster.sol";
 import {
-    TornadoFeeAdapter
-} from "../contracts/fee_adapters/tornadocash/TornadoFeeAdapter.sol";
+    IEntryPoint
+} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {
+    IUniswapV3Factory
+} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+
+import {TornadoPaymaster} from "../contracts/tornadocash/TornadoPaymaster.sol";
 import {
     ITornadoInstance
-} from "../contracts/fee_adapters/tornadocash/interfaces/ITornadoInstance.sol";
-import {
-    IUniswapV3Pool
-} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+} from "../contracts/tornadocash/interfaces/ITornadoInstance.sol";
 
+/// Deploys the `TornadoPaymaster` and allowlists every instance listed under
+/// `[protocols.tornado.<name>]` in the chain config.
 contract DeployTornado is Script {
-    function run() external {
-        address paymasterAddr = Deployments.readAddress("paymaster", "address");
-
+    function run() external returns (TornadoPaymaster paymaster) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
 
-        string memory toml = vm.readFile(Chains.path());
-        string[] memory pools = vm.parseTomlKeys(toml, ".protocols.tornado");
+        paymaster = deploy(privateKey);
+        console.log("Deployed TornadoPaymaster at:", address(paymaster));
 
-        for (uint256 i = 0; i < pools.length; i++) {
-            string memory tomlKey = string.concat(
-                "protocols.tornado.",
-                pools[i]
-            );
-            address deployed = deploy(paymasterAddr, tomlKey, privateKey);
-            console.log(
-                "Deployed TornadoFeeAdapter (%s) at: %s",
-                pools[i],
-                deployed
-            );
-            Deployments.writeAddress(
-                string.concat("tornado_", pools[i]),
-                "tornadoAdapter",
-                deployed
+        string memory toml = vm.readFile(Chains.path());
+        string[] memory instances = vm.parseTomlKeys(
+            toml,
+            ".protocols.tornado"
+        );
+        for (uint256 i = 0; i < instances.length; i++) {
+            allowInstance(
+                paymaster,
+                string.concat("protocols.tornado.", instances[i]),
+                privateKey
             );
         }
     }
 
-    function deploy(
-        address paymasterAddr,
-        string memory tornadoProtocolTomlKey,
+    function deploy(uint256 privateKey) public returns (TornadoPaymaster) {
+        (
+            IEntryPoint entryPoint,
+            IUniswapV3Factory factory,
+            address weth,
+            uint32 twapPeriod
+        ) = PaymasterSetup.baseArgs();
+
+        vm.broadcast(privateKey);
+        return new TornadoPaymaster(entryPoint, factory, weth, twapPeriod);
+    }
+
+    function allowInstance(
+        TornadoPaymaster paymaster,
+        string memory tomlKey,
         uint256 privateKey
-    ) public returns (address) {
-        PrivacyPaymaster paymaster = PrivacyPaymaster(payable(paymasterAddr));
-        address tornadoInstanceAddr = Chains.readAddress(
-            tornadoProtocolTomlKey,
-            "instance"
-        );
-        ITornadoInstance tornadoInstance = ITornadoInstance(
-            tornadoInstanceAddr
+    ) public {
+        ITornadoInstance instance = ITornadoInstance(
+            Chains.readAddress(tomlKey, "instance")
         );
 
         vm.broadcast(privateKey);
-        TornadoFeeAdapter adapter = new TornadoFeeAdapter(tornadoInstance);
-        vm.broadcast(privateKey);
-        paymaster.setApprovedAdapter(address(adapter), true);
+        paymaster.setInstance(instance, true);
 
-        address feeToken = adapter.FEE_TOKEN();
-        (bool allowed, ) = paymaster.feeTokens(feeToken);
-        if (feeToken != address(0) && !allowed) {
-            uint24 uniswapFee = uint24(
-                Chains.readUint(tornadoProtocolTomlKey, "uniswap_fee")
-            );
-            vm.broadcast(privateKey);
-            paymaster.setFeeToken(feeToken, uniswapFee, true);
-
-            // Expand pool observation buffer to cover the TWAP period
-            uint32 twapPeriod = paymaster.twapPeriod();
-            uint32 blockTime = uint32(Chains.readUint("block_time"));
-            uint16 requiredCardinality = uint16(twapPeriod / blockTime) + 1;
-            address pool = paymaster.FACTORY().getPool(
-                feeToken,
-                paymaster.WETH(),
-                uniswapFee
-            );
-            vm.broadcast(privateKey);
-            IUniswapV3Pool(pool).increaseObservationCardinalityNext(
-                requiredCardinality
-            );
+        (, address token) = paymaster.instances(instance);
+        if (token != address(0)) {
+            PaymasterSetup.allowFeeToken(paymaster, token, tomlKey, privateKey);
         }
-
-        return address(adapter);
     }
 }

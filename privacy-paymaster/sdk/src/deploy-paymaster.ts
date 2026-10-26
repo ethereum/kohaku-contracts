@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Hex } from "viem";
@@ -16,7 +15,6 @@ export interface DeployPaymasterOptions {
 
 export interface DeploymentResult {
     paymasterAddress: `0x${string}`;
-    tornadoAdapterAddress: `0x${string}`;
 }
 
 function findProjectRoot(startDir: string): string {
@@ -29,15 +27,18 @@ function findProjectRoot(startDir: string): string {
     }
 }
 
-function forge(args: string[], env: NodeJS.ProcessEnv, cwd: string): Promise<void> {
+/// Runs forge, resolving with its stdout.
+function forge(args: string[], env: NodeJS.ProcessEnv, cwd: string): Promise<string> {
     return new Promise((resolve, reject) => {
         console.log(`Running: forge ${args.join(" ")}`);
-        const proc = spawn("forge", args, { env, cwd, stdio: ["ignore", "ignore", "pipe"] });
+        const proc = spawn("forge", args, { env, cwd, stdio: ["ignore", "pipe", "pipe"] });
+        let stdout = "";
         let stderr = "";
+        proc.stdout!.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
         proc.stderr!.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
         proc.on("close", (code) => {
             if (code !== 0) reject(new Error(`forge ${args.join(" ")} failed:\n${stderr}`));
-            else resolve();
+            else resolve(stdout);
         });
     });
 }
@@ -53,20 +54,27 @@ export async function deployPaymaster(options: DeployPaymasterOptions): Promise<
     } = options;
 
     const projectRoot = findProjectRoot(dirname(fileURLToPath(import.meta.url)));
-    const deploymentsPath = join(projectRoot, `config/deployments/${deployEnv}.json`);
-
-    await writeFile(deploymentsPath, "{}");
-
     const env: NodeJS.ProcessEnv = { ...process.env, DEPLOY_ENV: deployEnv, PRIVATE_KEY: privateKey };
-    await forge(["script", "DeployPaymaster", "--fork-url", forkUrl, "--broadcast"], env, projectRoot);
-    await forge(["script", "StakePaymaster", "--fork-url", forkUrl, "--broadcast"], {
-        ...env, STAKE_AMOUNT: stakeAmount, UNSTAKE_DELAY: unstakeDelay, DEPOSIT_AMOUNT: depositAmount,
-    }, projectRoot);
-    await forge(["script", "DeployTornado", "--fork-url", forkUrl, "--broadcast"], env, projectRoot);
 
-    const deployments = JSON.parse(await readFile(deploymentsPath, "utf-8"));
-    return {
-        paymasterAddress: deployments.paymaster.address as `0x${string}`,
-        tornadoAdapterAddress: deployments.tornado_eth_1.tornadoAdapter as `0x${string}`,
-    };
+    const deployOutput = await forge(
+        ["script", "DeployTornado", "--fork-url", forkUrl, "--broadcast", "--json"], env, projectRoot,
+    );
+    const paymasterAddress = scriptReturn(deployOutput, "paymaster");
+
+    await forge(["script", "StakePaymaster", "--fork-url", forkUrl, "--broadcast"], {
+        ...env, PAYMASTER_ADDRESS: paymasterAddress, STAKE_AMOUNT: stakeAmount, UNSTAKE_DELAY: unstakeDelay, DEPOSIT_AMOUNT: depositAmount,
+    }, projectRoot);
+
+    return { paymasterAddress };
+}
+
+/// Reads a named return value of a script's `run()` from `forge script --json`
+/// output, which prints one JSON object per line.
+function scriptReturn(output: string, name: string): `0x${string}` {
+    for (const line of output.split("\n")) {
+        if (!line.startsWith("{")) continue;
+        const value = JSON.parse(line).returns?.[name]?.value;
+        if (value) return value;
+    }
+    throw new Error(`forge script output has no "${name}" return value:\n${output}`);
 }

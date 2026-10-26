@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 /// @title IPrivacyPool
 /// @notice Minimal interface for a Privacy Pools protocol pool (0xbow /
-///         `privacy-pools-core`), sufficient for the fee adapter to
+///         `privacy-pools-core`), sufficient for the paymaster to
 ///         trigger a withdrawal and read the pool's asset.
 ///
 /// @dev Verified against `0xbow-io/privacy-pools-core` (main, commit pushed
@@ -52,6 +52,6 @@ interface IPrivacyPool {
     function ASSET() external view returns (address);
 
     /// @notice The pool's scope; bound into the proof `context`. Not needed by the
-    ///         adapter (the pool checks context itself) but useful for SDK/tests.
+    ///         paymaster (the pool checks context itself) but useful for SDK/tests.
     function SCOPE() external view returns (uint256);
 }

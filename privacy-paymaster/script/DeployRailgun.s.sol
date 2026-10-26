@@ -3,23 +3,25 @@ pragma solidity ^0.8.28;
 
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
-import {Deployments} from "./lib/Deployments.sol";
 import {Chains} from "./lib/Chains.sol";
+import {PaymasterSetup} from "./lib/PaymasterSetup.sol";
 
-import {PrivacyPaymaster} from "../contracts/PrivacyPaymaster.sol";
 import {
-    RailgunFeeAdapter
-} from "../contracts/fee_adapters/railgun/RailgunFeeAdapter.sol";
+    IEntryPoint
+} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {
+    IUniswapV3Factory
+} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+
+import {RailgunPaymaster} from "../contracts/railgun/RailgunPaymaster.sol";
 import {
     IRailgunSmartWallet
-} from "../contracts/fee_adapters/railgun/interfaces/IRailgunSmartWallet.sol";
+} from "../contracts/railgun/interfaces/IRailgunSmartWallet.sol";
 
 contract DeployRailgun is Script {
-    function run() external {
-        address paymasterAddr = Deployments.readAddress("paymaster", "address");
-        address railgunSmartWalletAddr = Chains.readAddress(
-            "protocols.railgun",
-            "smart_wallet"
+    function run() external returns (RailgunPaymaster paymaster) {
+        IRailgunSmartWallet railgunSmartWallet = IRailgunSmartWallet(
+            Chains.readAddress("protocols.railgun", "smart_wallet")
         );
         bytes32 masterPublicKey = Chains.readBytes32(
             "protocols.railgun",
@@ -27,34 +29,35 @@ contract DeployRailgun is Script {
         );
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
 
-        address deployment = deploy(
-            paymasterAddr,
-            railgunSmartWalletAddr,
+        paymaster = deploy(
+            railgunSmartWallet,
             masterPublicKey,
             privateKey
         );
-        console.log("Deployed RailgunFeeAdapter at:", deployment);
-        Deployments.writeAddress("railgun", "railgunAdapter", deployment);
+        console.log("Deployed RailgunPaymaster at:", address(paymaster));
     }
 
     function deploy(
-        address paymasterAddr,
-        address railgunSmartWalletAddr,
+        IRailgunSmartWallet railgunSmartWallet,
         bytes32 masterPublicKey,
         uint256 privateKey
-    ) public returns (address) {
-        PrivacyPaymaster paymaster = PrivacyPaymaster(payable(paymasterAddr));
-        IRailgunSmartWallet railgunSmartWallet = IRailgunSmartWallet(
-            railgunSmartWalletAddr
-        );
+    ) public returns (RailgunPaymaster) {
+        (
+            IEntryPoint entryPoint,
+            IUniswapV3Factory factory,
+            address weth,
+            uint32 twapPeriod
+        ) = PaymasterSetup.baseArgs();
 
         vm.broadcast(privateKey);
-        RailgunFeeAdapter adapter = new RailgunFeeAdapter(
-            railgunSmartWallet,
-            masterPublicKey
-        );
-        vm.broadcast(privateKey);
-        paymaster.setApprovedAdapter(address(adapter), true);
-        return address(adapter);
+        return
+            new RailgunPaymaster(
+                entryPoint,
+                factory,
+                weth,
+                twapPeriod,
+                railgunSmartWallet,
+                masterPublicKey
+            );
     }
 }

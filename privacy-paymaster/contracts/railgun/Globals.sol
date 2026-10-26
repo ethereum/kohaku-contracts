@@ -2,17 +2,6 @@
 pragma solidity ^0.8.28;
 pragma abicoder v2;
 
-// Constants
-uint256 constant SNARK_SCALAR_FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-// Verification bypass address, can't be address(0) as many burn prevention mechanisms will disallow transfers to 0
-// Use 0x000000000000000000000000000000000000dEaD as an alternative known burn address
-// https://etherscan.io/address/0x000000000000000000000000000000000000dEaD
-address constant VERIFICATION_BYPASS = 0x000000000000000000000000000000000000dEaD;
-
-bytes32 constant ACCEPT_RAILGUN_RESPONSE = keccak256(
-    abi.encodePacked("Accept Railgun Session")
-);
-
 struct ShieldCiphertext {
     bytes32[3] encryptedBundle; // IV shared (16 bytes), tag (16 bytes), random (16 bytes), IV sender (16 bytes), receiver viewing public key (32 bytes)
     bytes32 shieldKey; // Public key to generate shared key from
@@ -85,15 +74,6 @@ struct G1Point {
 struct G2Point {
     uint256[2] x;
     uint256[2] y;
-}
-
-struct VerifyingKey {
-    string artifactsIPFSHash;
-    G1Point alpha1;
-    G2Point beta2;
-    G2Point gamma2;
-    G2Point delta2;
-    G1Point[] ic;
 }
 
 struct SnarkProof {
