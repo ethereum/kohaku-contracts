@@ -41,8 +41,9 @@ library PaymasterSetup {
         uint32 observations = paymaster.TWAP_PERIOD() / blockTime;
         // forge-lint: disable-next-line(unsafe-typecast)
         uint16 requiredCardinality = uint16(observations) + 1;
+        IUniswapV3Pool pool = IUniswapV3Pool(paymaster.oraclePools(feeToken));
         vm.broadcast(privateKey);
-        IUniswapV3Pool(paymaster.oraclePools(feeToken)).increaseObservationCardinalityNext(requiredCardinality);
+        pool.increaseObservationCardinalityNext(requiredCardinality);
     }
 
     //? Ignore in forge coverage
