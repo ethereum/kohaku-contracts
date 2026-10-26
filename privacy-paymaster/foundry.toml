@@ -13,7 +13,6 @@ remappings = [
 fs_permissions = [
     { access = "read", path = "test/fixtures" },
     { access = "read", path = "config/chains" },
-    { access = "read-write", path = "config/deployments" },
 ]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

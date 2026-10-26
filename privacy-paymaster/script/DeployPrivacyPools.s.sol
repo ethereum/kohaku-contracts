@@ -3,7 +3,6 @@ pragma solidity ^0.8.28;
 
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
-import {Deployments} from "./lib/Deployments.sol";
 import {Chains} from "./lib/Chains.sol";
 import {PaymasterSetup} from "./lib/PaymasterSetup.sol";
 
@@ -23,7 +22,7 @@ import {IPrivacyPool} from "../contracts/privacypools/interfaces/IPrivacyPool.so
 ///     instance = "0x..."
 ///     uniswap_fee = 3000
 contract DeployPrivacyPools is Script {
-    function run() external {
+    function run() external returns (PrivacyPoolsPaymaster paymaster) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
 
         string memory toml = vm.readFile(Chains.path());
@@ -35,9 +34,8 @@ contract DeployPrivacyPools is Script {
         string[] memory pools = vm.parseTomlKeys(toml, ".protocols.privacy_pools");
         require(pools.length > 0, "no privacy pools in chain config");
 
-        PrivacyPoolsPaymaster paymaster = deploy(privateKey);
+        paymaster = deploy(privateKey);
         console.log("Deployed PrivacyPoolsPaymaster at:", address(paymaster));
-        Deployments.writeAddress("privacypools", "paymaster", address(paymaster));
 
         for (uint256 i = 0; i < pools.length; i++) {
             allowPool(paymaster, string.concat("protocols.privacy_pools.", pools[i]), privateKey);

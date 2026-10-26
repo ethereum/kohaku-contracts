@@ -11,15 +11,6 @@ library Chains {
         return string.concat("config/chains/", env, ".toml");
     }
 
-    function writeAddress(
-        string memory section,
-        string memory field,
-        address value
-    ) internal {
-        string memory toml = vm.serializeAddress(section, field, value);
-        vm.writeToml(toml, path(), string.concat(".", section));
-    }
-
     function readAddress(
         string memory section,
         string memory field

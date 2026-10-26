@@ -2,7 +2,6 @@
 pragma solidity ^0.8.28;
 
 import {Script} from "forge-std/Script.sol";
-import {Deployments} from "./lib/Deployments.sol";
 
 import {
     IEntryPoint
@@ -11,11 +10,7 @@ import {BasePrivacyPaymaster} from "../contracts/BasePrivacyPaymaster.sol";
 
 contract StakePaymaster is Script {
     function run() external {
-        // Deployment section of the paymaster to use: tornado, privacypools or railgun.
-        address paymasterAddr = Deployments.readAddress(
-            vm.envString("PAYMASTER"),
-            "paymaster"
-        );
+        address paymasterAddr = vm.envAddress("PAYMASTER_ADDRESS");
         uint256 stakeAmount = vm.envOr("STAKE_AMOUNT", uint256(0));
         uint32 unstakeDelay = uint32(vm.envOr("UNSTAKE_DELAY", uint32(0)));
         uint256 depositAmount = vm.envOr("DEPOSIT_AMOUNT", uint256(0));

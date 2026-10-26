@@ -3,7 +3,6 @@ pragma solidity ^0.8.28;
 
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
-import {Deployments} from "./lib/Deployments.sol";
 import {Chains} from "./lib/Chains.sol";
 import {PaymasterSetup} from "./lib/PaymasterSetup.sol";
 
@@ -22,12 +21,11 @@ import {
 /// Deploys the `TornadoPaymaster` and allowlists every instance listed under
 /// `[protocols.tornado.<name>]` in the chain config.
 contract DeployTornado is Script {
-    function run() external {
+    function run() external returns (TornadoPaymaster paymaster) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
 
-        TornadoPaymaster paymaster = deploy(privateKey);
+        paymaster = deploy(privateKey);
         console.log("Deployed TornadoPaymaster at:", address(paymaster));
-        Deployments.writeAddress("tornado", "paymaster", address(paymaster));
 
         string memory toml = vm.readFile(Chains.path());
         string[] memory instances = vm.parseTomlKeys(

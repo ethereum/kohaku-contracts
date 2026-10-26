@@ -3,7 +3,6 @@ pragma solidity ^0.8.28;
 
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
-import {Deployments} from "./lib/Deployments.sol";
 import {Chains} from "./lib/Chains.sol";
 import {PaymasterSetup} from "./lib/PaymasterSetup.sol";
 
@@ -20,7 +19,7 @@ import {
 } from "../contracts/railgun/interfaces/IRailgunSmartWallet.sol";
 
 contract DeployRailgun is Script {
-    function run() external {
+    function run() external returns (RailgunPaymaster paymaster) {
         IRailgunSmartWallet railgunSmartWallet = IRailgunSmartWallet(
             Chains.readAddress("protocols.railgun", "smart_wallet")
         );
@@ -30,13 +29,12 @@ contract DeployRailgun is Script {
         );
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
 
-        RailgunPaymaster paymaster = deploy(
+        paymaster = deploy(
             railgunSmartWallet,
             masterPublicKey,
             privateKey
         );
         console.log("Deployed RailgunPaymaster at:", address(paymaster));
-        Deployments.writeAddress("railgun", "paymaster", address(paymaster));
     }
 
     function deploy(
