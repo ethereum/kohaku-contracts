@@ -31,9 +31,9 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
 
     // ----- ERRORS -----
     error AdaptParamsAreNotSender(bytes32 adaptParams, bytes32 sender);
-    error MissingFee(bytes32 master_public_key, bytes16 random, uint120 value);
+    error MissingFee(bytes32 masterPublicKey, bytes16 random, uint120 value);
 
-    /// ----- IMMUTABLES -----
+    // ----- IMMUTABLES -----
     IRailgunSmartWallet public immutable RAILGUN_SMART_WALLET;
     address public immutable WETH;
     /// The MPK for the paymaster's zk-wallet.
@@ -61,7 +61,6 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
         _verifyTransactions(userOp.sender, d);
         RAILGUN_SMART_WALLET.transact(d.transactions);
 
-        // TODO: Add an optional refund recipient in the PaymasterData struct
         return (d.value, address(0));
     }
 
@@ -75,11 +74,7 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
         address sender,
         PaymasterData memory d
     ) internal view {
-        bytes32 expectedCommitment = _hashCommitment(
-            MASTER_PUBLIC_KEY,
-            d.random,
-            d.value
-        );
+        bytes32 expectedCommitment = _hashCommitment(d.random, d.value);
 
         bool commitmentFound = false;
         for (uint256 i = 0; i < d.transactions.length; i++) {
@@ -101,14 +96,14 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
             revert MissingFee(MASTER_PUBLIC_KEY, d.random, d.value);
     }
 
-    /// Calculate the commitment hash for the WETH fee transfer based on the MPK, random, and value.
+    /// Calculate the commitment hash for a WETH fee transfer of `value` to the
+    /// paymaster's railgun wallet.
     function _hashCommitment(
-        bytes32 master_public_key,
         bytes16 random,
         uint120 value
     ) internal view returns (bytes32) {
         bytes32 npk = RAILGUN_SMART_WALLET.hashLeftRight(
-            master_public_key,
+            MASTER_PUBLIC_KEY,
             bytes32(uint256(uint128(random)))
         );
 

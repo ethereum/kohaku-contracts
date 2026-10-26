@@ -18,6 +18,7 @@ Each protocol has its own paymaster, which must be staked and funded separately.
 ```
 forge script DeployTornado --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
 forge script DeployRailgun --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
+forge script DeployPrivacyPools --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
 
 PAYMASTER=tornado STAKE_AMOUNT=0 UNSTAKE_DELAY=0 DEPOSIT_AMOUNT=0 forge script StakePaymaster --rpc-url $SEPOLIA_RPC_URL --broadcast
 ```

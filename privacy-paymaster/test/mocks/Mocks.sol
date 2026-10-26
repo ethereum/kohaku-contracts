@@ -4,9 +4,7 @@ pragma solidity ^0.8.28;
 import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {IAccount} from "@account-abstraction/contracts/interfaces/IAccount.sol";
 import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {BasePrivacyPaymaster} from "../../contracts/BasePrivacyPaymaster.sol";
 import {IPrivacyPool} from "../../contracts/privacypools/interfaces/IPrivacyPool.sol";
@@ -64,13 +62,9 @@ contract GasBurnerAccount is IAccount {
 }
 
 /// Mock of a privacy-pools-core pool. Pushes `pubSignals[2]` (the
-/// withdrawn value) to the withdrawal's processooor, mimicking the real
-/// pool's `_push`. No Groth16 verification is performed.
+/// withdrawn value) in ETH to the withdrawal's processooor, mimicking the
+/// real pool's `_push`. No Groth16 verification is performed.
 contract MockPrivacyPool is IPrivacyPool {
-    using SafeERC20 for IERC20;
-
-    address internal constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-
     error MockRevert();
 
     address internal _asset;
@@ -99,13 +93,8 @@ contract MockPrivacyPool is IPrivacyPool {
         if (msg.sender != _withdrawal.processooor) revert MockRevert();
         if (shouldFail) revert MockRevert();
 
-        uint256 value = _proof.pubSignals[2];
-        if (_asset == NATIVE_ASSET) {
-            (bool ok,) = payable(_withdrawal.processooor).call{value: value}("");
-            require(ok);
-        } else {
-            IERC20(_asset).safeTransfer(_withdrawal.processooor, value);
-        }
+        (bool ok,) = payable(_withdrawal.processooor).call{value: _proof.pubSignals[2]}("");
+        require(ok);
     }
 
     function test() public {}
@@ -141,27 +130,10 @@ contract MockEthTornado {
 
 /// Mock of an ERC20 Tornado instance, which exposes `token()`.
 contract MockERC20Tornado {
-    using SafeERC20 for IERC20;
+    address public immutable token;
 
-    uint256 public constant denomination = 100 ether;
-    IERC20 public immutable token;
-
-    constructor(IERC20 _token) {
+    constructor(address _token) {
         token = _token;
-    }
-
-    function withdraw(
-        bytes calldata,
-        bytes32,
-        bytes32,
-        address payable recipient,
-        address payable relayer,
-        uint256 fee,
-        uint256 refund
-    ) external payable {
-        require(msg.value == refund, "refund");
-        token.safeTransfer(recipient, denomination - fee);
-        token.safeTransfer(relayer, fee);
     }
 
     function test() public {}

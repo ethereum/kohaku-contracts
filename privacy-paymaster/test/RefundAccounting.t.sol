@@ -14,13 +14,16 @@ import {MockPaymaster, GasBurnerAccount} from "./mocks/Mocks.sol";
 contract RefundAccountingTest is Test {
     uint256 internal constant GAS_PRICE = 1 gwei;
     uint256 internal constant DEPOSIT = 10 ether;
+    uint256 internal constant VERIFICATION_GAS_LIMIT = 100_000;
+    uint256 internal constant PM_VERIFICATION_GAS_LIMIT = 200_000;
+    uint256 internal constant PRE_VERIFICATION_GAS = 50_000;
+
+    address payable internal constant BUNDLER = payable(address(0xB0B));
+    address internal constant REFUND_RECIPIENT = address(0xECE1);
 
     EntryPoint internal entryPoint;
     MockPaymaster internal paymaster;
     GasBurnerAccount internal account;
-
-    address payable internal bundler = payable(address(0xB0B));
-    address internal refundRecipient = address(0xECE1);
 
     function setUp() public {
         entryPoint = new EntryPoint();
@@ -40,7 +43,7 @@ contract RefundAccountingTest is Test {
 
         PackedUserOperation memory op = _buildUserOp(burn, callGasLimit, postOpGasLimit);
         uint256 fee = _maxCost(callGasLimit, postOpGasLimit);
-        paymaster.setFee(fee, refundRecipient);
+        paymaster.setFee(fee, REFUND_RECIPIENT);
         // The fee is collected during validation in the real protocols;
         // pre-fund the paymaster to simulate that.
         vm.deal(address(paymaster), fee);
@@ -49,14 +52,10 @@ contract RefundAccountingTest is Test {
 
         uint256 wealthAfter = entryPoint.balanceOf(address(paymaster)) + address(paymaster).balance;
         assertGe(wealthAfter, DEPOSIT, "paymaster lost funds");
-        assertGt(refundRecipient.balance, 0, "no refund paid");
+        assertGt(REFUND_RECIPIENT.balance, 0, "no refund paid");
     }
 
     // ----- Helpers -----
-
-    uint256 internal constant VERIFICATION_GAS_LIMIT = 100_000;
-    uint256 internal constant PM_VERIFICATION_GAS_LIMIT = 200_000;
-    uint256 internal constant PRE_VERIFICATION_GAS = 50_000;
 
     function _buildUserOp(uint256 burn, uint256 callGasLimit, uint256 postOpGasLimit)
         internal
@@ -82,7 +81,7 @@ contract RefundAccountingTest is Test {
     function _handleOp(PackedUserOperation memory op) internal {
         PackedUserOperation[] memory ops = new PackedUserOperation[](1);
         ops[0] = op;
-        vm.prank(bundler, bundler);
-        entryPoint.handleOps(ops, bundler);
+        vm.prank(BUNDLER, BUNDLER);
+        entryPoint.handleOps(ops, BUNDLER);
     }
 }

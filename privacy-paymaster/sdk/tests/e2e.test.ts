@@ -9,7 +9,7 @@ import configFixtures from "../../test/fixtures/tornadocash/config.json";
 import shieldFixtures from "../../test/fixtures/tornadocash/shield.json";
 import unshieldFixtures from "../../test/fixtures/tornadocash/unshield.json";
 import { createBundlerClient, toSimple7702SmartAccount } from "viem/account-abstraction";
-import { encodeTornadoPaymasterData } from "../src/adapter-data";
+import { encodeTornadoPaymasterData } from "../src/paymaster-data";
 
 const tornadoAbi = parseAbi([
     "function deposit(bytes32 _commitment) external payable",

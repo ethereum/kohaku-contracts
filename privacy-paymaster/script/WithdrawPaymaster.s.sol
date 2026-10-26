@@ -3,7 +3,6 @@ pragma solidity ^0.8.28;
 
 import {Script} from "forge-std/Script.sol";
 import {Deployments} from "./lib/Deployments.sol";
-import {Chains} from "./lib/Chains.sol";
 
 import {BasePrivacyPaymaster} from "../contracts/BasePrivacyPaymaster.sol";
 

@@ -125,7 +125,7 @@ contract RailgunPaymasterForkTest is Test {
             abi.encodeWithSelector(
                 RailgunPaymaster.AdaptParamsAreNotSender.selector,
                 bytes32(0),
-                address(0xDEAD)
+                bytes32(uint256(uint160(address(0xDEAD))))
             )
         );
         vm.prank(entryPointAddr);
