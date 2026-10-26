@@ -7,11 +7,14 @@ import {
 import {
     IEntryPoint
 } from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {
+    IUniswapV3Factory
+} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 import {BasePrivacyPaymaster} from "../BasePrivacyPaymaster.sol";
 import {ITornadoInstance} from "./interfaces/ITornadoInstance.sol";
 
-/// Paymaster for Tornado Cash withdrawals from any allowlisted ETH instance.
+/// Paymaster for Tornado Cash withdrawals from any allowlisted instance.
 ///
 /// The paymaster acts as the withdrawal's relayer, so the instance pays the
 /// fee directly to it. The proof binds `relayer` and `refund`, so proofs for
@@ -27,17 +30,27 @@ contract TornadoPaymaster is BasePrivacyPaymaster {
         uint256 fee;
     }
 
+    struct Instance {
+        bool allowed;
+        /// The instance's ERC20, or address(0) for ETH instances.
+        address token;
+    }
+
     // ----- ERRORS -----
     error InstanceNotAllowed(address instance);
-    error NotEthInstance(address instance);
 
     // ----- STATE -----
-    mapping(ITornadoInstance => bool) public instances;
+    mapping(ITornadoInstance => Instance) public instances;
 
     // ----- EVENTS -----
     event InstanceSet(address indexed instance, bool allowed);
 
-    constructor(IEntryPoint _entryPoint) BasePrivacyPaymaster(_entryPoint) {}
+    constructor(
+        IEntryPoint _entryPoint,
+        IUniswapV3Factory _factory,
+        address _weth,
+        uint32 _twapPeriod
+    ) BasePrivacyPaymaster(_entryPoint, _factory, _weth, _twapPeriod) {}
 
     // ----- ADMIN -----
     function setInstance(
@@ -45,23 +58,24 @@ contract TornadoPaymaster is BasePrivacyPaymaster {
         bool allowed
         // aderyn-ignore-next-line(centralization-risk)
     ) external onlyOwner {
-        if (allowed && _isERC20Instance(instance)) {
-            revert NotEthInstance(address(instance));
-        }
-        instances[instance] = allowed;
+        instances[instance] = Instance({
+            allowed: allowed,
+            token: _instanceToken(instance)
+        });
         emit InstanceSet(address(instance), allowed);
     }
 
     // ----- BasePrivacyPaymaster -----
     function _collectFee(
         PackedUserOperation calldata userOp
-    ) internal override returns (uint256, address) {
+    ) internal override returns (address, uint256, address) {
         PaymasterData memory d = abi.decode(
             _paymasterData(userOp),
             (PaymasterData)
         );
         // Only allowlisted instances are trusted to actually pay the fee.
-        if (!instances[d.instance]) revert InstanceNotAllowed(address(d.instance));
+        Instance memory instance = instances[d.instance];
+        if (!instance.allowed) revert InstanceNotAllowed(address(d.instance));
         _checkCallGasLimit(userOp, d.recipient);
 
         d.instance.withdraw(
@@ -73,16 +87,19 @@ contract TornadoPaymaster is BasePrivacyPaymaster {
             d.fee,
             0
         );
-        return (d.fee, d.recipient);
+        return (instance.token, d.fee, d.recipient);
     }
 
     /// ERC20Tornado exposes a `token()` getter, ETHTornado does not.
-    function _isERC20Instance(
+    function _instanceToken(
         ITornadoInstance instance
-    ) internal view returns (bool) {
+    ) internal view returns (address) {
         (bool ok, bytes memory ret) = address(instance).staticcall(
             abi.encodeWithSignature("token()")
         );
-        return ok && ret.length == 32;
+        if (ok && ret.length == 32) {
+            return abi.decode(ret, (address));
+        }
+        return address(0);
     }
 }

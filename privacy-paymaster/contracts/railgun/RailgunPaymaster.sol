@@ -7,6 +7,9 @@ import {
 import {
     IEntryPoint
 } from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {
+    IUniswapV3Factory
+} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 import {BasePrivacyPaymaster} from "../BasePrivacyPaymaster.sol";
 import {IRailgunSmartWallet} from "./interfaces/IRailgunSmartWallet.sol";
@@ -19,41 +22,46 @@ import {
 
 /// Paymaster for Railgun transactions.
 ///
-/// The fee is paid in WETH (Railgun can't shield native ETH), counted 1:1
-/// with ETH, as a shielded transfer to the paymaster's railgun wallet. It
-/// can't be refunded.
+/// The fee is paid as a shielded transfer to the paymaster's railgun wallet,
+/// so it can't be refunded.
 contract RailgunPaymaster is BasePrivacyPaymaster {
     struct PaymasterData {
         bytes16 random;
+        address asset;
         uint120 value;
         Transaction[] transactions;
     }
 
     // ----- ERRORS -----
     error AdaptParamsAreNotSender(bytes32 adaptParams, bytes32 sender);
-    error MissingFee(bytes32 masterPublicKey, bytes16 random, uint120 value);
+    error MissingFee(
+        bytes32 masterPublicKey,
+        bytes16 random,
+        address asset,
+        uint120 value
+    );
 
     // ----- IMMUTABLES -----
     IRailgunSmartWallet public immutable RAILGUN_SMART_WALLET;
-    address public immutable WETH;
     /// The MPK for the paymaster's zk-wallet.
     bytes32 immutable MASTER_PUBLIC_KEY;
 
     constructor(
         IEntryPoint _entryPoint,
-        IRailgunSmartWallet _railgunSmartWallet,
+        IUniswapV3Factory _factory,
         address _weth,
+        uint32 _twapPeriod,
+        IRailgunSmartWallet _railgunSmartWallet,
         bytes32 _masterPublicKey
-    ) BasePrivacyPaymaster(_entryPoint) {
+    ) BasePrivacyPaymaster(_entryPoint, _factory, _weth, _twapPeriod) {
         RAILGUN_SMART_WALLET = _railgunSmartWallet;
-        WETH = _weth;
         MASTER_PUBLIC_KEY = _masterPublicKey;
     }
 
     // ----- BasePrivacyPaymaster -----
     function _collectFee(
         PackedUserOperation calldata userOp
-    ) internal override returns (uint256, address) {
+    ) internal override returns (address, uint256, address) {
         PaymasterData memory d = abi.decode(
             _paymasterData(userOp),
             (PaymasterData)
@@ -61,7 +69,7 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
         _verifyTransactions(userOp.sender, d);
         RAILGUN_SMART_WALLET.transact(d.transactions);
 
-        return (d.value, address(0));
+        return (d.asset, d.value, address(0));
     }
 
     /// Verifies the provided railgun transactions
@@ -74,7 +82,11 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
         address sender,
         PaymasterData memory d
     ) internal view {
-        bytes32 expectedCommitment = _hashCommitment(d.random, d.value);
+        bytes32 expectedCommitment = _hashCommitment(
+            d.random,
+            d.asset,
+            d.value
+        );
 
         bool commitmentFound = false;
         for (uint256 i = 0; i < d.transactions.length; i++) {
@@ -93,13 +105,14 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
         }
 
         if (!commitmentFound)
-            revert MissingFee(MASTER_PUBLIC_KEY, d.random, d.value);
+            revert MissingFee(MASTER_PUBLIC_KEY, d.random, d.asset, d.value);
     }
 
-    /// Calculate the commitment hash for a WETH fee transfer of `value` to the
-    /// paymaster's railgun wallet.
+    /// Calculate the commitment hash for a fee transfer of `value` `asset` to
+    /// the paymaster's railgun wallet.
     function _hashCommitment(
         bytes16 random,
+        address asset,
         uint120 value
     ) internal view returns (bytes32) {
         bytes32 npk = RAILGUN_SMART_WALLET.hashLeftRight(
@@ -111,7 +124,7 @@ contract RailgunPaymaster is BasePrivacyPaymaster {
             npk: npk,
             token: TokenData({
                 tokenType: TokenType.ERC20,
-                tokenAddress: WETH,
+                tokenAddress: asset,
                 tokenSubID: 0
             }),
             value: value

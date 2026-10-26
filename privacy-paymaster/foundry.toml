@@ -7,6 +7,8 @@ optimizer_runs = 200
 remappings = [
     "@account-abstraction/=lib/account-abstraction/",
     "@openzeppelin/=lib/openzeppelin-contracts/",
+    "@uniswap/v3-periphery/=lib/v3-periphery/",
+    "@uniswap/v3-core/=lib/v3-core/",
 ]
 fs_permissions = [
     { access = "read", path = "test/fixtures" },

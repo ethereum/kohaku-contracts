@@ -7,6 +7,14 @@
 [submodule "privacy-paymaster/lib/openzeppelin-contracts"]
 	path = privacy-paymaster/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "privacy-paymaster/lib/v3-core"]
+	path = privacy-paymaster/lib/v3-core
+	url = https://github.com/uniswap/v3-core
+	branch = 0.8
+[submodule "privacy-paymaster/lib/v3-periphery"]
+	path = privacy-paymaster/lib/v3-periphery
+	url = https://github.com/uniswap/v3-periphery
+	branch = 0.8
 [submodule "social-recovery/lib/forge-std"]
 	path = social-recovery/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std

@@ -6,6 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {EntryPoint} from "@account-abstraction/contracts/core/EntryPoint.sol";
 import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
+import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 import {MockPaymaster, GasBurnerAccount} from "./mocks/Mocks.sol";
 
@@ -27,7 +28,7 @@ contract RefundAccountingTest is Test {
 
     function setUp() public {
         entryPoint = new EntryPoint();
-        paymaster = new MockPaymaster(IEntryPoint(address(entryPoint)));
+        paymaster = new MockPaymaster(IEntryPoint(address(entryPoint)), IUniswapV3Factory(address(0)), address(0), 0);
         account = new GasBurnerAccount();
 
         paymaster.deposit{value: DEPOSIT}();
@@ -43,7 +44,7 @@ contract RefundAccountingTest is Test {
 
         PackedUserOperation memory op = _buildUserOp(burn, callGasLimit, postOpGasLimit);
         uint256 fee = _maxCost(callGasLimit, postOpGasLimit);
-        paymaster.setFee(fee, REFUND_RECIPIENT);
+        paymaster.setFee(address(0), fee, REFUND_RECIPIENT);
         // The fee is collected during validation in the real protocols;
         // pre-fund the paymaster to simulate that.
         vm.deal(address(paymaster), fee);
