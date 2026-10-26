@@ -51,24 +51,18 @@ library PaymasterSetup {
         string memory tomlKey,
         uint256 privateKey
     ) internal {
-        (bool allowed, ) = paymaster.feeTokens(feeToken);
-        if (allowed) return;
+        if (paymaster.oraclePools(feeToken) != address(0)) return;
 
         uint24 uniswapFee = uint24(Chains.readUint(tomlKey, "uniswap_fee"));
         vm.broadcast(privateKey);
         paymaster.setFeeToken(feeToken, uniswapFee, true);
 
         uint32 blockTime = uint32(Chains.readUint("block_time"));
-        uint32 observations = paymaster.twapPeriod() / blockTime;
+        uint32 observations = paymaster.TWAP_PERIOD() / blockTime;
         // forge-lint: disable-next-line(unsafe-typecast)
         uint16 requiredCardinality = uint16(observations) + 1;
-        address pool = paymaster.FACTORY().getPool(
-            feeToken,
-            paymaster.WETH(),
-            uniswapFee
-        );
         vm.broadcast(privateKey);
-        IUniswapV3Pool(pool).increaseObservationCardinalityNext(
+        IUniswapV3Pool(paymaster.oraclePools(feeToken)).increaseObservationCardinalityNext(
             requiredCardinality
         );
     }

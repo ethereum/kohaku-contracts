@@ -52,11 +52,8 @@ contract BasePrivacyPaymasterTest is Test {
 
     // ----- Constructor -----
 
-    function test_constructor_defaultTokensAllowed() public view {
-        (bool ethAllowed,) = paymaster.feeTokens(address(0));
-        (bool wethAllowed,) = paymaster.feeTokens(address(weth));
-        assertTrue(ethAllowed);
-        assertTrue(wethAllowed);
+    function test_constructor() public view {
+        assertEq(paymaster.TWAP_PERIOD(), 300);
         assertEq(paymaster.markupBps(), 0);
     }
 
@@ -68,8 +65,6 @@ contract BasePrivacyPaymasterTest is Test {
         vm.startPrank(NOT_OWNER);
         vm.expectRevert(err);
         paymaster.setFeeToken(address(weth), 3000, true);
-        vm.expectRevert(err);
-        paymaster.setTwapPeriod(1);
         vm.expectRevert(err);
         paymaster.setMarkup(1);
         vm.expectRevert(err);
@@ -85,9 +80,7 @@ contract BasePrivacyPaymasterTest is Test {
 
         paymaster.setFeeToken(address(token), 3000, true);
 
-        (bool allowed, address pool) = paymaster.feeTokens(address(token));
-        assertTrue(allowed);
-        assertEq(pool, address(0x1234));
+        assertEq(paymaster.oraclePools(address(token)), address(0x1234));
     }
 
     function test_setFeeToken_revertsIfPoolMissing() public {
@@ -96,10 +89,13 @@ contract BasePrivacyPaymasterTest is Test {
         paymaster.setFeeToken(token, 3000, true);
     }
 
-    function test_setFeeToken_disabledSkipsPoolLookup() public {
-        paymaster.setFeeToken(address(weth), 3000, false);
-        (bool allowed,) = paymaster.feeTokens(address(weth));
-        assertFalse(allowed);
+    function test_setFeeToken_disallow() public {
+        MockERC20 token = new MockERC20();
+        factory.setPool(address(token), address(weth), 3000, address(0x1234));
+        paymaster.setFeeToken(address(token), 3000, true);
+
+        paymaster.setFeeToken(address(token), 3000, false);
+        assertEq(paymaster.oraclePools(address(token)), address(0));
     }
 
     function test_setMarkup() public {

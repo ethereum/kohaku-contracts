@@ -41,11 +41,6 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     using SafeERC20 for IERC20;
     using UserOperationLib for PackedUserOperation;
 
-    struct FeeToken {
-        bool allowed;
-        address pool;
-    }
-
     struct PostOpContext {
         address feeToken;
         uint256 feePaid;
@@ -65,16 +60,17 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     // ----- IMMUTABLES -----
     IUniswapV3Factory public immutable FACTORY;
     address public immutable WETH;
+    uint32 public immutable TWAP_PERIOD;
 
     // ----- STATE -----
-    uint32 public twapPeriod;
     /// Markup charged on top of the quoted gas cost, in basis points.
     uint256 public markupBps;
-    mapping(address => FeeToken) public feeTokens;
+    /// The Uniswap V3 pool (vs WETH) used to price each allowed ERC20 fee
+    /// token. ETH and WETH are always allowed and need no pool.
+    mapping(address => address) public oraclePools;
 
     // ----- EVENTS -----
     event FeeTokenSet(address indexed token, bool allowed);
-    event TwapPeriodSet(uint32 twapPeriod);
     event MarkupSet(uint256 markupBps);
     event RefundFailed(
         address indexed recipient,
@@ -91,24 +87,12 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     ) BasePaymaster(_entryPoint) {
         FACTORY = _factory;
         WETH = _weth;
-        twapPeriod = _twapPeriod;
-
-        // Native ETH is always allowed
-        feeTokens[address(0)] = FeeToken({allowed: true, pool: address(0)});
-        feeTokens[_weth] = FeeToken({allowed: true, pool: address(0)});
+        TWAP_PERIOD = _twapPeriod;
     }
 
     receive() external payable {}
 
     // ----- ADMIN -----
-    function setTwapPeriod(
-        uint32 _twapPeriod
-        // aderyn-ignore-next-line(centralization-risk)
-    ) external onlyOwner {
-        twapPeriod = _twapPeriod;
-        emit TwapPeriodSet(_twapPeriod);
-    }
-
     function setMarkup(
         uint256 _markupBps
         // aderyn-ignore-next-line(centralization-risk)
@@ -124,12 +108,12 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
         // aderyn-ignore-next-line(centralization-risk)
     ) external onlyOwner {
         address pool;
-        if (allowed && token != address(0) && token != WETH) {
+        if (allowed) {
             // aderyn-ignore-next-line reentrancy
             pool = FACTORY.getPool(token, WETH, uniswapFee);
             require(pool != address(0), "pool not supported");
         }
-        feeTokens[token] = FeeToken({allowed: allowed, pool: pool});
+        oraclePools[token] = pool;
         emit FeeTokenSet(token, allowed);
     }
 
@@ -156,7 +140,6 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
             uint256 feePaid,
             address refundRecipient
         ) = _collectFee(userOp);
-        if (!feeTokens[feeToken].allowed) revert FeeTokenNotAllowed(feeToken);
 
         uint256 maxCostInToken = quoteWeiInToken(feeToken, maxCost);
         if (feePaid < maxCostInToken) {
@@ -203,7 +186,8 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     }
 
     /// Quotes `weiAmount` in `feeToken`, including the markup. ERC20 tokens
-    /// are priced with the Uniswap V3 TWAP against WETH.
+    /// are priced with the Uniswap V3 TWAP against WETH, and revert unless
+    /// allowed.
     function quoteWeiInToken(
         address feeToken,
         uint256 weiAmount
@@ -211,10 +195,10 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
         uint256 amount = (weiAmount * (BPS + markupBps)) / BPS;
         if (feeToken == address(0) || feeToken == WETH) return amount;
 
-        (int24 meanTick, ) = OracleLibrary.consult(
-            feeTokens[feeToken].pool,
-            twapPeriod
-        );
+        address pool = oraclePools[feeToken];
+        if (pool == address(0)) revert FeeTokenNotAllowed(feeToken);
+
+        (int24 meanTick, ) = OracleLibrary.consult(pool, TWAP_PERIOD);
         return
             OracleLibrary.getQuoteAtTick(
                 meanTick,
