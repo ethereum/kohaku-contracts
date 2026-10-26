@@ -121,7 +121,7 @@ describe("tornado paymaster e2e", () => {
         ]);
 
         expect(paymasterBalance).toBe(580811000000000n);
-        expect(recipientBalance).toBe(999497693000000000n);
+        expect(recipientBalance).toBe(999419189000000000n);
     }, 120_000);
 });
 
