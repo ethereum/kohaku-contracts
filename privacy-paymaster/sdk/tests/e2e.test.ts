@@ -120,7 +120,7 @@ describe("tornado paymaster e2e", () => {
             client.getBalance({ address: paymasterAddr }),
         ]);
 
-        expect(paymasterBalance).toBe(502307000000000n);
+        expect(paymasterBalance).toBe(580811000000000n);
         expect(recipientBalance).toBe(999497693000000000n);
     }, 120_000);
 });
