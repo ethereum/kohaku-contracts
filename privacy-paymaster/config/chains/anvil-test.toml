@@ -9,7 +9,6 @@ twap_period = 3600
 
 [protocols.tornado.eth_1]
 instance = "0x8cc930096B4Df705A007c4A039BDFA1320Ed2508"
-denomination = "1000000000000000000"
 
 [protocols.railgun]
 smart_wallet = "0xeCFCf3b4eC647c4Ca6D49108b311b7a7C9543fea"
