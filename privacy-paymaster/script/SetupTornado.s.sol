@@ -25,8 +25,11 @@ contract SetupTornado is Script {
     function allowInstance(TornadoPaymaster paymaster, string memory tomlKey, uint256 privateKey) public {
         ITornadoInstance instance = ITornadoInstance(Chains.readAddress(tomlKey, "instance"));
 
-        vm.broadcast(privateKey);
-        paymaster.setInstance(instance, true);
+        (bool allowed,) = paymaster.instances(instance);
+        if (!allowed) {
+            vm.broadcast(privateKey);
+            paymaster.setInstance(instance, true);
+        }
 
         (, address token) = paymaster.instances(instance);
         if (token != address(0)) {

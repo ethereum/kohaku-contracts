@@ -32,8 +32,11 @@ contract SetupPrivacyPools is Script {
     function allowPool(PrivacyPoolsPaymaster paymaster, string memory tomlKey, uint256 privateKey) public {
         IPrivacyPool pool = IPrivacyPool(Chains.readAddress(tomlKey, "instance"));
 
-        vm.broadcast(privateKey);
-        paymaster.setPool(pool, true);
+        (bool allowed,) = paymaster.pools(pool);
+        if (!allowed) {
+            vm.broadcast(privateKey);
+            paymaster.setPool(pool, true);
+        }
 
         (, address asset) = paymaster.pools(pool);
         if (asset != address(0)) {
