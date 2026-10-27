@@ -29,14 +29,29 @@ uniswap_fee = 100
 # liquidity floor on Uniswap V3 vs WETH).
 
 # --- ETH (native, no fee token / uniswap_fee) ---
-[protocols.tornado.eth_0_1]
+[protocols.tornado.eth_001]
+instance = "0x199112eb461ea7eec1d75b33343542e1d069b41c"
+
+[protocols.tornado.eth_003]
+instance = "0x398971a7ae0fed4ae435f353ef00d3d4e4c18fd4"
+
+[protocols.tornado.eth_01]
 instance = "0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc"
+
+[protocols.tornado.eth_03]
+instance = "0xf22487b84a618192aa68c0e1da24e9bbd892f774"
 
 [protocols.tornado.eth_1]
 instance = "0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936"
 
+[protocols.tornado.eth_3]
+instance = "0x74185a3f30b873c0ce1f4257298d1cda61be2f9f"
+
 [protocols.tornado.eth_10]
 instance = "0x910Cbd523D972eb0a6f4cAe4618aD62622b39DbF"
+
+[protocols.tornado.eth_30]
+instance = "0xc11197f71c7730c8b5db7c84191e07575f1db896"
 
 [protocols.tornado.eth_100]
 instance = "0xA160cdAB225685dA1d56aa342Ad8841c3b53f291"
