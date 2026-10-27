@@ -30,6 +30,7 @@ PAYMASTER_ADDRESS=0x... STAKE_AMOUNT=0 UNSTAKE_DELAY=0 DEPOSIT_AMOUNT=0 forge sc
 
 ### Deployments
 
-| Protocol    | Paymaster Address                          | Commit Hash                              |
-| ----------- | ------------------------------------------ | ---------------------------------------- |
-| Tornadocash | 0x835ce2da8ad0d1f5d5a8462a58594006514c39b0 | f8939fff2460a7de9337850672c561a2751eb572 |
+| Protocol      | Chain ID | Paymaster Address                          | Commit Hash                              |
+| ------------- | -------- | ------------------------------------------ | ---------------------------------------- |
+| Tornadocash   | 11155111 | 0x835ce2da8ad0d1f5d5a8462a58594006514c39b0 | f8939fff2460a7de9337850672c561a2751eb572 |
+| Privacy Pools | 11155111 | 0xfaeaFADa5Db4dE4Ff266e1f86eA1862Adbd06421 | f8939fff2460a7de9337850672c561a2751eb572 |
