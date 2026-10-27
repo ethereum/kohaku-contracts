@@ -65,15 +65,12 @@ contract PrivacyPoolsPaymasterTest is Test {
         IPrivacyPool.WithdrawProof memory proof;
         proof.pubSignals[2] = withdrawnValue;
         PrivacyPoolsPaymaster.PaymasterData memory data = PrivacyPoolsPaymaster.PaymasterData({
-            pool: pool,
-            withdrawal: IPrivacyPool.Withdrawal({processooor: processooor, data: feeData}),
-            proof: proof
+            pool: pool, withdrawal: IPrivacyPool.Withdrawal({processooor: processooor, data: feeData}), proof: proof
         });
 
         op.sender = SENDER;
         op.accountGasLimits = bytes32(callGasLimit);
-        op.paymasterAndData =
-            abi.encodePacked(address(paymaster), uint128(500_000), uint128(50_000), abi.encode(data));
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(500_000), uint128(50_000), abi.encode(data));
     }
 
     function _validate(PackedUserOperation memory op, uint256 maxCost) internal returns (bytes memory ctx) {
@@ -184,7 +181,9 @@ contract PrivacyPoolsPaymasterTest is Test {
         vm.deal(address(ethPool), 1 ether);
         PackedUserOperation memory op = _buildUserOp(ethPool, address(paymaster), 0.5 ether, 0.1 ether);
 
-        vm.expectRevert(abi.encodeWithSelector(PrivacyPoolsPaymaster.FeeExceedsWithdrawal.selector, 0.5 ether, 0.1 ether));
+        vm.expectRevert(
+            abi.encodeWithSelector(PrivacyPoolsPaymaster.FeeExceedsWithdrawal.selector, 0.5 ether, 0.1 ether)
+        );
         _validate(op, 0.05 ether);
     }
 

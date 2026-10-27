@@ -14,11 +14,7 @@ contract WithdrawPaymaster is Script {
         withdraw(paymasterAddr, withdrawAmount, privateKey);
     }
 
-    function withdraw(
-        address paymasterAddr,
-        uint256 withdrawAmount,
-        uint256 privateKey
-    ) public {
+    function withdraw(address paymasterAddr, uint256 withdrawAmount, uint256 privateKey) public {
         BasePrivacyPaymaster paymaster = BasePrivacyPaymaster(payable(paymasterAddr));
 
         vm.broadcast(privateKey);

@@ -11,22 +11,15 @@ library Chains {
         return string.concat("config/chains/", env, ".toml");
     }
 
-    function readAddress(
-        string memory section,
-        string memory field
-    ) internal view returns (address) {
+    function readAddress(string memory section, string memory field) internal view returns (address) {
         string memory p = path();
         require(vm.exists(p), string.concat("no chain file", p));
 
         string memory toml = vm.readFile(p);
-        return
-            vm.parseTomlAddress(toml, string.concat(".", section, ".", field));
+        return vm.parseTomlAddress(toml, string.concat(".", section, ".", field));
     }
 
-    function readUint(
-        string memory section,
-        string memory field
-    ) internal view returns (uint256) {
+    function readUint(string memory section, string memory field) internal view returns (uint256) {
         string memory p = path();
         require(vm.exists(p), string.concat("no chain file", p));
 
@@ -34,9 +27,7 @@ library Chains {
         return vm.parseTomlUint(toml, string.concat(".", section, ".", field));
     }
 
-    function readUint(
-        string memory field
-    ) internal view returns (uint256) {
+    function readUint(string memory field) internal view returns (uint256) {
         string memory p = path();
         require(vm.exists(p), string.concat("no chain file", p));
 
@@ -44,16 +35,12 @@ library Chains {
         return vm.parseTomlUint(toml, string.concat(".", field));
     }
 
-    function readBytes32(
-        string memory section,
-        string memory field
-    ) internal view returns (bytes32) {
+    function readBytes32(string memory section, string memory field) internal view returns (bytes32) {
         string memory p = path();
         require(vm.exists(p), string.concat("no chain file", p));
 
         string memory toml = vm.readFile(p);
-        return
-            vm.parseTomlBytes32(toml, string.concat(".", section, ".", field));
+        return vm.parseTomlBytes32(toml, string.concat(".", section, ".", field));
     }
 
     //? Ignore in forge coverage

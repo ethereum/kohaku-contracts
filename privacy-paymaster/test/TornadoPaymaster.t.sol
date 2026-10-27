@@ -61,8 +61,7 @@ contract TornadoPaymasterTest is Test {
 
         op.sender = sender;
         op.accountGasLimits = bytes32(callGasLimit);
-        op.paymasterAndData =
-            abi.encodePacked(address(paymaster), uint128(500_000), uint128(50_000), abi.encode(data));
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(500_000), uint128(50_000), abi.encode(data));
     }
 
     function _validate(PackedUserOperation memory op, uint256 maxCost) internal returns (bytes memory ctx) {
@@ -210,8 +209,7 @@ contract TornadoPaymasterForkTest is Test {
         });
 
         op.sender = SENDER;
-        op.paymasterAndData =
-            abi.encodePacked(address(paymaster), uint128(500_000), uint128(50_000), abi.encode(data));
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(500_000), uint128(50_000), abi.encode(data));
     }
 
     // ----- Tests -----

@@ -1,31 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {
-    BasePaymaster
-} from "@account-abstraction/contracts/core/BasePaymaster.sol";
-import {
-    UserOperationLib
-} from "@account-abstraction/contracts/core/UserOperationLib.sol";
-import {
-    PackedUserOperation
-} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
-import {
-    IEntryPoint
-} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {BasePaymaster} from "@account-abstraction/contracts/core/BasePaymaster.sol";
+import {UserOperationLib} from "@account-abstraction/contracts/core/UserOperationLib.sol";
+import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
+import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {
-    SafeERC20
-} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
-import {
-    IUniswapV3Factory
-} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-import {
-    OracleLibrary
-} from "@uniswap/v3-periphery/contracts/libraries/OracleLibrary.sol";
+import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import {OracleLibrary} from "@uniswap/v3-periphery/contracts/libraries/OracleLibrary.sol";
 
 /// Base paymaster for sponsoring withdrawals from privacy protocols.
 ///
@@ -55,10 +41,9 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
 
     /// Slot of the simulation flag, which skips the fee check.
     ///
-    /// Never written on-chain. Only read when the fee is short, so simulation 
+    /// Never written on-chain. Only read when the fee is short, so simulation
     /// costs slightly more.
-    bytes32 public constant SIMULATE_SLOT =
-        keccak256("privacy-paymaster.simulate");
+    bytes32 public constant SIMULATE_SLOT = keccak256("privacy-paymaster.simulate");
 
     // ----- ERRORS -----
     error FeeTokenNotAllowed(address feeToken);
@@ -80,19 +65,12 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     // ----- EVENTS -----
     event FeeTokenSet(address indexed token, bool allowed);
     event MarkupSet(uint256 markupBps);
-    event RefundFailed(
-        address indexed recipient,
-        address indexed token,
-        uint256 amount
-    );
+    event RefundFailed(address indexed recipient, address indexed token, uint256 amount);
 
     // ----- CONSTRUCTOR -----
-    constructor(
-        IEntryPoint _entryPoint,
-        IUniswapV3Factory _factory,
-        address _weth,
-        uint32 _twapPeriod
-    ) BasePaymaster(_entryPoint) {
+    constructor(IEntryPoint _entryPoint, IUniswapV3Factory _factory, address _weth, uint32 _twapPeriod)
+        BasePaymaster(_entryPoint)
+    {
         FACTORY = _factory;
         WETH = _weth;
         TWAP_PERIOD = _twapPeriod;
@@ -106,7 +84,10 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     function setMarkup(
         uint256 _markupBps
         // aderyn-ignore-next-line(centralization-risk)
-    ) external onlyOwner {
+    )
+        external
+        onlyOwner
+    {
         markupBps = _markupBps;
         emit MarkupSet(_markupBps);
     }
@@ -120,7 +101,10 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
         uint24 uniswapFee,
         bool allowed
         // aderyn-ignore-next-line(centralization-risk)
-    ) external onlyOwner {
+    )
+        external
+        onlyOwner
+    {
         address pool;
         if (allowed) {
             // aderyn-ignore-next-line reentrancy
@@ -136,7 +120,7 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     /// Doesn't touch the EntryPoint deposit; use `withdrawTo` for that.
     // aderyn-ignore-next-line(centralization-risk)
     function sweep(address payable to) external onlyOwner {
-        (bool ok, ) = to.call{value: address(this).balance}("");
+        (bool ok,) = to.call{value: address(this).balance}("");
         require(ok, "sweep failed");
     }
 
@@ -152,22 +136,15 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     /// Collects the fee and checks it covers `maxCost` plus markup.
     ///
     /// Returns an empty context when there's nothing to refund.
-    function _validatePaymasterUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32,
-        uint256 maxCost
-    ) internal override returns (bytes memory context, uint256 validationData) {
-        (
-            address feeToken,
-            uint256 feePaid,
-            address refundRecipient
-        ) = _collectFee(userOp);
+    function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32, uint256 maxCost)
+        internal
+        override
+        returns (bytes memory context, uint256 validationData)
+    {
+        (address feeToken, uint256 feePaid, address refundRecipient) = _collectFee(userOp);
 
         uint256 maxCostInToken = quoteWeiInToken(feeToken, maxCost);
-        if (
-            feePaid < maxCostInToken &&
-            !StorageSlot.getBooleanSlot(SIMULATE_SLOT).value
-        ) {
+        if (feePaid < maxCostInToken && !StorageSlot.getBooleanSlot(SIMULATE_SLOT).value) {
             revert InsufficientFee(maxCostInToken, feePaid);
         }
 
@@ -191,16 +168,12 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     ///
     /// `actualGasCost` excludes postOp's own gas and unused-gas penalty, so
     /// the full `postOpGasLimit` is charged to cover both.
-    function _postOp(
-        PostOpMode,
-        bytes calldata context,
-        uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas
-    ) internal override {
+    function _postOp(PostOpMode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+        internal
+        override
+    {
         PostOpContext memory ctx = abi.decode(context, (PostOpContext));
-        uint256 gasCost = actualGasCost +
-            ctx.postOpGasLimit *
-            actualUserOpFeePerGas;
+        uint256 gasCost = actualGasCost + ctx.postOpGasLimit * actualUserOpFeePerGas;
         uint256 refund = _refundAmount(ctx, gasCost);
         if (refund == 0) return;
 
@@ -213,24 +186,15 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     ///
     /// ETH and WETH are 1:1. Other tokens use their Uniswap V3 TWAP and
     /// revert unless allowed.
-    function quoteWeiInToken(
-        address feeToken,
-        uint256 weiAmount
-    ) public view returns (uint256 tokenAmount) {
+    function quoteWeiInToken(address feeToken, uint256 weiAmount) public view returns (uint256 tokenAmount) {
         uint256 amount = (weiAmount * (BPS + markupBps)) / BPS;
         if (feeToken == address(0) || feeToken == WETH) return amount;
 
         address pool = oraclePools[feeToken];
         if (pool == address(0)) revert FeeTokenNotAllowed(feeToken);
 
-        (int24 meanTick, ) = OracleLibrary.consult(pool, TWAP_PERIOD);
-        return
-            OracleLibrary.getQuoteAtTick(
-                meanTick,
-                SafeCast.toUint128(amount),
-                WETH,
-                feeToken
-            );
+        (int24 meanTick,) = OracleLibrary.consult(pool, TWAP_PERIOD);
+        return OracleLibrary.getQuoteAtTick(meanTick, SafeCast.toUint128(amount), WETH, feeToken);
     }
 
     // ----- PROTOCOL HOOKS -----
@@ -241,9 +205,7 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     /// no refund.
     ///
     /// @dev Must revert unless the fee has been paid.
-    function _collectFee(
-        PackedUserOperation calldata userOp
-    )
+    function _collectFee(PackedUserOperation calldata userOp)
         internal
         virtual
         returns (address feeToken, uint256 feePaid, address refundRecipient);
@@ -251,9 +213,7 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     // ----- HELPERS -----
 
     /// Returns the protocol-specific part of `paymasterAndData`.
-    function _paymasterData(
-        PackedUserOperation calldata userOp
-    ) internal pure returns (bytes calldata) {
+    function _paymasterData(PackedUserOperation calldata userOp) internal pure returns (bytes calldata) {
         return userOp.paymasterAndData[UserOperationLib.PAYMASTER_DATA_OFFSET:];
     }
 
@@ -261,10 +221,7 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     ///
     /// Stops third parties attaching expensive calls to someone else's
     /// withdrawal. Recipients may still make calls, e.g. to swap.
-    function _requireSenderIsRecipientOrNoCalls(
-        PackedUserOperation calldata userOp,
-        address recipient
-    ) internal pure {
+    function _requireSenderIsRecipientOrNoCalls(PackedUserOperation calldata userOp, address recipient) internal pure {
         uint256 callGasLimit = userOp.unpackCallGasLimit();
         if (recipient != userOp.sender && callGasLimit != 0) {
             revert CallGasLimitNonZero(callGasLimit);
@@ -272,13 +229,9 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     }
 
     /// Transfers `token` (address(0) for ETH), returning false on failure.
-    function _trySafeTransfer(
-        address token,
-        address to,
-        uint256 amount
-    ) internal returns (bool ok) {
+    function _trySafeTransfer(address token, address to, uint256 amount) internal returns (bool ok) {
         if (token == address(0)) {
-            (ok, ) = to.call{value: amount}("");
+            (ok,) = to.call{value: amount}("");
             return ok;
         }
         return IERC20(token).trySafeTransfer(to, amount);
@@ -287,16 +240,8 @@ abstract contract BasePrivacyPaymaster is BasePaymaster {
     /// Returns the part of the fee not needed to cover `gasCost`.
     ///
     /// Prices `gasCost` at the validation-time rate, rounding up.
-    function _refundAmount(
-        PostOpContext memory ctx,
-        uint256 gasCost
-    ) internal pure returns (uint256 refund) {
-        uint256 cost = Math.mulDiv(
-            gasCost,
-            ctx.maxCostInToken,
-            ctx.maxCost,
-            Math.Rounding.Ceil
-        );
+    function _refundAmount(PostOpContext memory ctx, uint256 gasCost) internal pure returns (uint256 refund) {
+        uint256 cost = Math.mulDiv(gasCost, ctx.maxCostInToken, ctx.maxCost, Math.Rounding.Ceil);
         return ctx.feePaid > cost ? ctx.feePaid - cost : 0;
     }
 }

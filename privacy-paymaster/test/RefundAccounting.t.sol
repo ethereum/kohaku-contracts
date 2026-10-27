@@ -69,14 +69,16 @@ contract RefundAccountingTest is Test {
         op.preVerificationGas = PRE_VERIFICATION_GAS;
         op.gasFees = bytes32((GAS_PRICE << 128) | GAS_PRICE);
         op.paymasterAndData =
-            // forge-lint: disable-next-line(unsafe-typecast)
-            abi.encodePacked(address(paymaster), uint128(PM_VERIFICATION_GAS_LIMIT), uint128(postOpGasLimit));
+        // forge-lint: disable-next-line(unsafe-typecast)
+        abi.encodePacked(address(paymaster), uint128(PM_VERIFICATION_GAS_LIMIT), uint128(postOpGasLimit));
     }
 
     function _maxCost(uint256 callGasLimit, uint256 postOpGasLimit) internal pure returns (uint256) {
-        return (
-            VERIFICATION_GAS_LIMIT + callGasLimit + PM_VERIFICATION_GAS_LIMIT + postOpGasLimit + PRE_VERIFICATION_GAS
-        ) * GAS_PRICE;
+        return (VERIFICATION_GAS_LIMIT
+                + callGasLimit
+                + PM_VERIFICATION_GAS_LIMIT
+                + postOpGasLimit
+                + PRE_VERIFICATION_GAS) * GAS_PRICE;
     }
 
     function _handleOp(PackedUserOperation memory op) internal {

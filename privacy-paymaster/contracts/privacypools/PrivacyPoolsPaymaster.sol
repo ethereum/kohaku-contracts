@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {
-    PackedUserOperation
-} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
-import {
-    IEntryPoint
-} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
+import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {
-    IUniswapV3Factory
-} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 import {BasePrivacyPaymaster} from "../BasePrivacyPaymaster.sol";
 import {IPrivacyPool} from "./interfaces/IPrivacyPool.sol";
@@ -43,8 +37,7 @@ contract PrivacyPoolsPaymaster is BasePrivacyPaymaster {
     }
 
     /// Sentinel used by privacy-pools-core to represent the native asset.
-    address internal constant NATIVE_ASSET =
-        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address internal constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     // ----- ERRORS -----
     error PoolNotAllowed(address pool);
@@ -57,12 +50,9 @@ contract PrivacyPoolsPaymaster is BasePrivacyPaymaster {
     // ----- EVENTS -----
     event PoolSet(address indexed pool, bool allowed);
 
-    constructor(
-        IEntryPoint _entryPoint,
-        IUniswapV3Factory _factory,
-        address _weth,
-        uint32 _twapPeriod
-    ) BasePrivacyPaymaster(_entryPoint, _factory, _weth, _twapPeriod) {}
+    constructor(IEntryPoint _entryPoint, IUniswapV3Factory _factory, address _weth, uint32 _twapPeriod)
+        BasePrivacyPaymaster(_entryPoint, _factory, _weth, _twapPeriod)
+    {}
 
     // ----- ADMIN -----
 
@@ -71,12 +61,12 @@ contract PrivacyPoolsPaymaster is BasePrivacyPaymaster {
         IPrivacyPool pool,
         bool allowed
         // aderyn-ignore-next-line(centralization-risk)
-    ) external onlyOwner {
+    )
+        external
+        onlyOwner
+    {
         address asset = pool.ASSET();
-        pools[pool] = Pool({
-            allowed: allowed,
-            asset: asset == NATIVE_ASSET ? address(0) : asset
-        });
+        pools[pool] = Pool({allowed: allowed, asset: asset == NATIVE_ASSET ? address(0) : asset});
         emit PoolSet(address(pool), allowed);
     }
 
@@ -86,17 +76,12 @@ contract PrivacyPoolsPaymaster is BasePrivacyPaymaster {
     ///
     /// Measures the amount received by balance change, so fee-on-transfer
     /// tokens work.
-    function _collectFee(
-        PackedUserOperation calldata userOp
-    )
+    function _collectFee(PackedUserOperation calldata userOp)
         internal
         override
         returns (address feeToken, uint256 feePaid, address refundRecipient)
     {
-        PaymasterData memory d = abi.decode(
-            _paymasterData(userOp),
-            (PaymasterData)
-        );
+        PaymasterData memory d = abi.decode(_paymasterData(userOp), (PaymasterData));
         // Only allowlisted pools are trusted to actually push the funds.
         Pool memory pool = pools[d.pool];
         if (!pool.allowed) revert PoolNotAllowed(address(d.pool));
