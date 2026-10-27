@@ -11,12 +11,19 @@ Tests and deploy scripts read `SEPOLIA_RPC_URL` from the environment. CI supplie
 
 ## Deployment
 
-Each protocol has its own paymaster, which must be staked and funded separately. The deploy scripts print and return the deployed addresses.
+Each protocol has its own paymaster, which must be staked and funded separately. The deploy scripts print and return the deployed addresses. Tornado and Privacy Pools paymasters are then allowlisted against the chain config's instances / pools with their setup scripts.
 
 ```bash
+# Tornadocash
 forge script DeployTornado --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
-forge script DeployRailgun --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
+PAYMASTER_ADDRESS=0x... forge script SetupTornado --rpc-url $SEPOLIA_RPC_URL --broadcast
+
+# Privacy Pools
 forge script DeployPrivacyPools --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
+PAYMASTER_ADDRESS=0x... forge script SetupPrivacyPools --rpc-url $SEPOLIA_RPC_URL --broadcast
+
+# Railgun
+forge script DeployRailgun --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
 
 PAYMASTER_ADDRESS=0x... STAKE_AMOUNT=0 UNSTAKE_DELAY=0 DEPOSIT_AMOUNT=0 forge script StakePaymaster --rpc-url $SEPOLIA_RPC_URL --broadcast
 ```
