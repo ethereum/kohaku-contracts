@@ -36,6 +36,17 @@ instance = "0x3d1C943dfb2C8d9905B0Da0AFD18615915fF343A"
 instance = "0x6921fd1a97441dd603a997ED6DDF388658daf754"
 uniswap_fee = 500
 
+[protocols.privacy_pools.simple_eth]
+instance = "0x644d5A2554d36e27509254F32ccfeBe8cd58861f"
+
+[protocols.privacy_pools.complex_usdc]
+instance = "0x0b062Fe33c4f1592D8EA63f9a0177FcA44374C0f"
+uniswap_fee = 500
+
+[protocols.privacy_pools.complex_usdt]
+instance = "0x6709277E170DEe3E54101cDb73a450E392ADfF54"
+uniswap_fee = 500
+
 [protocols.railgun]
 smart_wallet = "0xeCFCf3b4eC647c4Ca6D49108b311b7a7C9543fea"
 master_public_key = "0x19acdde26147205d58fd7768be7c011f08a147ef86e6b70968d09c81cef74b13"
@@ -44,4 +55,6 @@ address = "0zk1qyv6eh0zv9rjqh2cl4mk30nuqy0s3g28a7rwddcfdrgfeqww7a93xunpd9kxwatwq
 
 [tokens]
 weth = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
+usdc = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"
+usdt = "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0"
 dai = "0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357"
