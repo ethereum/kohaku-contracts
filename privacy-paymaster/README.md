@@ -27,3 +27,9 @@ forge script DeployRailgun --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --ver
 
 PAYMASTER_ADDRESS=0x... STAKE_AMOUNT=0 UNSTAKE_DELAY=0 DEPOSIT_AMOUNT=0 forge script StakePaymaster --rpc-url $SEPOLIA_RPC_URL --broadcast
 ```
+
+### Deployments
+
+| Protocol    | Paymaster Address                          | Commit Hash                              |
+| ----------- | ------------------------------------------ | ---------------------------------------- |
+| Tornadocash | 0x835ce2da8ad0d1f5d5a8462a58594006514c39b0 | f8939fff2460a7de9337850672c561a2751eb572 |
