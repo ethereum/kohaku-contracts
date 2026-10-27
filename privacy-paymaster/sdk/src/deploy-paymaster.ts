@@ -60,9 +60,12 @@ export async function deployPaymaster(options: DeployPaymasterOptions): Promise<
         ["script", "DeployTornado", "--fork-url", forkUrl, "--broadcast", "--json"], env, projectRoot,
     );
     const paymasterAddress = scriptReturn(deployOutput, "paymaster");
+    const paymasterEnv: NodeJS.ProcessEnv = { ...env, PAYMASTER_ADDRESS: paymasterAddress };
+
+    await forge(["script", "SetupTornado", "--fork-url", forkUrl, "--broadcast"], paymasterEnv, projectRoot);
 
     await forge(["script", "StakePaymaster", "--fork-url", forkUrl, "--broadcast"], {
-        ...env, PAYMASTER_ADDRESS: paymasterAddress, STAKE_AMOUNT: stakeAmount, UNSTAKE_DELAY: unstakeDelay, DEPOSIT_AMOUNT: depositAmount,
+        ...paymasterEnv, STAKE_AMOUNT: stakeAmount, UNSTAKE_DELAY: unstakeDelay, DEPOSIT_AMOUNT: depositAmount,
     }, projectRoot);
 
     return { paymasterAddress };

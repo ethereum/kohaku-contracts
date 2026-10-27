@@ -8,17 +8,43 @@ entry_point = "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108"
 factory = "0x0227628f3F023bb0B980b67D528571c95c6DaC1c"
 twap_period = 300
 
+[protocols.tornado.eth_001]
+instance = "0x0E999C5285141ccB6dFaE68A0921F37ABd3e6A87"
+
+[protocols.tornado.eth_003]
+instance = "0x9480Be3964642efcD6CeBdb3570db8dC0f788908"
+
+[protocols.tornado.eth_01]
+instance = "0x8C4A04d872a6C1BE37964A21ba3a138525dFF50b"
+
+[protocols.tornado.eth_03]
+instance = "0x83091415b54d764E215153Ff54B36cCd44122e6e"
+
 [protocols.tornado.eth_1]
 instance = "0x8cc930096B4Df705A007c4A039BDFA1320Ed2508"
-denomination = "1000000000000000000"
 
-[protocols.tornado.eth_0_1]
-instance = "0x8C4A04d872a6C1BE37964A21ba3a138525dFF50b"
-denomination = "100000000000000000"
+[protocols.tornado.eth_3]
+instance = "0x7eE90edc51c3739Af3ee277e09ADE3F3d6bad4AF"
+
+[protocols.tornado.eth_10]
+instance = "0x8D10d506D29Fc62ABb8A290B99F66dB27Fc43585"
+
+[protocols.tornado.eth_30]
+instance = "0x3d1C943dfb2C8d9905B0Da0AFD18615915fF343A"
 
 [protocols.tornado.dai_100]
 instance = "0x6921fd1a97441dd603a997ED6DDF388658daf754"
-denomination = "100000000000000000000"
+uniswap_fee = 500
+
+[protocols.privacy_pools.simple_eth]
+instance = "0x644d5A2554d36e27509254F32ccfeBe8cd58861f"
+
+[protocols.privacy_pools.complex_usdc]
+instance = "0x0b062Fe33c4f1592D8EA63f9a0177FcA44374C0f"
+uniswap_fee = 500
+
+[protocols.privacy_pools.complex_usdt]
+instance = "0x6709277E170DEe3E54101cDb73a450E392ADfF54"
 uniswap_fee = 500
 
 [protocols.railgun]
@@ -29,4 +55,6 @@ address = "0zk1qyv6eh0zv9rjqh2cl4mk30nuqy0s3g28a7rwddcfdrgfeqww7a93xunpd9kxwatwq
 
 [tokens]
 weth = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
+usdc = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"
+usdt = "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0"
 dai = "0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357"
