@@ -107,18 +107,25 @@ contract AmbireRecoveryAction is IAmbireRecoveryAction {
   ///////////////////////////////////////////////////////////////*/
 
   /// @inheritdoc IRecoveryAction
-  /// @dev It first requires the account's code to be the one proxy this action serves, before
-  ///      it reads the manager. Writing the slot entry tells this action nothing, so a setup can
-  ///      exist on an account it does not serve. An account whose fallback accepts any call would
-  ///      never call validateSig, and this check is what stops such a call from returning as if
-  ///      the handover ran. It then builds the batch and sends it to the account's execute. It
-  ///      checks the attempt only to fail early and save the caller gas. The real checks run later,
-  ///      inside the account: the account calls validateSig, and the batch's first call is the
-  ///      manager's consume. When the order has no payee, this function pays its own caller,
-  ///      because this is the only step that knows who sent the recovery. The payload must hold at
-  ///      least two 32-byte words, each an address with its top twelve bytes zero. A longer payload
-  ///      passes that check and fails in validateSig, because the hash of its two addresses
-  ///      re-encoded does not equal the hash of the longer payload.
+  /// @dev The checks run in this order. First the account fit: the account's code must be the one
+  ///      proxy this action serves, before the manager is read. Writing the slot entry tells this
+  ///      action nothing, so a setup can exist on an account it does not serve, and an account whose
+  ///      fallback accepts any call would never call validateSig. This check is what stops such a
+  ///      call from returning as if the handover ran. Second, the manager's attempt for the account
+  ///      must be spendable: waiting, with its wait over. Third, the payload's hash must equal the
+  ///      attempt's payload hash. These three early checks only fail fast and save the caller gas.
+  ///      The authorization itself is enforced later, inside the account: the account calls
+  ///      validateSig before it runs the batch, and the batch's first call is the manager's
+  ///      consume, which spends the attempt only when it is spendable for this payload. Fourth, the
+  ///      payload's shape: it must hold at least two 32-byte words, each an address with its top
+  ///      twelve bytes zero, and it then decodes as a Handover whose two keys are nonzero and
+  ///      distinct. A longer payload passes the shape check and fails the hash check in
+  ///      validateSig, because the hash of its two addresses re-encoded does not equal the hash of
+  ///      the longer payload. Fifth, the batch: the consume, the grant and the revoke, plus a
+  ///      payment when the order has an amount. Sixth, the payee: the order's payee, or this
+  ///      function's caller when the order names none, because this is the only step that knows
+  ///      who sent the recovery. Last, the call: the batch goes to the account's execute under the
+  ///      signature that routes validation to this action's slot.
   function executeHandover(address _account, bytes calldata _payload) external {
     IPolicyManager.Attempt memory _attempt = _spendableAttempt(_account);
     bytes32 _payloadHash = keccak256(_payload);

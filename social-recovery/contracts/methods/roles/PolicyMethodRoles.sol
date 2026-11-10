@@ -8,27 +8,7 @@ import {Pausable} from '@openzeppelin/contracts/utils/Pausable.sol';
 import {IPolicyMethod} from 'interfaces/IPolicyMethod.sol';
 import {IPolicyMethodAdmin} from 'interfaces/IPolicyMethodAdmin.sol';
 import {IPolicyMethodPause} from 'interfaces/IPolicyMethodPause.sol';
-
-/// @title IPolicyMethodStop
-/// @author defi-wonderland
-/// @notice This interface declares the two stop controls of `IPolicyMethodPause` with the same selectors and
-///         without its events.
-/// @dev `PolicyMethodRoles` implements `pause` and `unpause` against this interface and does not inherit
-///      `IPolicyMethodPause`. `Pausable` already declares the `Paused` and `Unpaused` events. A second
-///      declaration of the same events would not compile. This interface adds no selector to the method. The
-///      canonical docs live in `IPolicyMethodPause`.
-interface IPolicyMethodStop {
-  /*///////////////////////////////////////////////////////////////
-                              LOGIC
-  ///////////////////////////////////////////////////////////////*/
-
-  /// @notice Stop this method. Only the pause holder can call it. `IPolicyMethodPause.pause` documents it in full.
-  function pause() external;
-
-  /// @notice Lift the stop so that this method's proofs count again. Only the pause holder can call it.
-  ///         `IPolicyMethodPause.unpause` documents it in full.
-  function unpause() external;
-}
+import {IPolicyMethodStop} from 'contracts/methods/roles/IPolicyMethodStop.sol';
 
 /// @title PolicyMethodRoles
 /// @author defi-wonderland
@@ -44,6 +24,12 @@ interface IPolicyMethodStop {
 ///      inherit `IPolicyMethodPause` as a Solidity base. `Pausable` already declares the same `Paused(address)`
 ///      and `Unpaused(address)` events, and a second declaration would not compile. The inheriting method
 ///      implements `verify` and the `_validateTrustedKeys` hook.
+///      An inheriting method must not override, and must not call outside this base's own flow, these
+///      OpenZeppelin members: `owner`, `pendingOwner`, `transferOwnership`, `renounceOwnership`,
+///      `_transferOwnership`, `paused`, `_pause`, `_unpause` and `_msgSender`. The pause holder's rules, the
+///      stop, the key admin's caller check and the `OwnershipTransferStarted`, `OwnershipTransferred`, `Paused`
+///      and `Unpaused` events all depend on them. A child that changed or bypassed one of them could move a
+///      role or the stop without the checks or the events that holders and monitors rely on.
 abstract contract PolicyMethodRoles is
   ERC165,
   Pausable,
@@ -92,8 +78,9 @@ abstract contract PolicyMethodRoles is
 
   /// @notice The constructor sets the pause holder, the key admin, the initial keys, the name and the version.
   /// @dev `Ownable` refuses a zero initial owner. The constructor runs the initial keys through the same
-  ///      `_validateTrustedKeys` hook that `setTrustedKeys` runs. An invalid initial set therefore reverts the
-  ///      deployment.
+  ///      `_validateTrustedKeys` hook that `setTrustedKeys` runs, before it stores them. An invalid initial set
+  ///      therefore reverts the deployment. Like `setTrustedKeys`, it hands the hook an independent copy of the
+  ///      list, so the hook cannot change the words that get stored.
   /// @param _initialOwner The pause holder.
   /// @param _initialAdmin The key admin. The constructor refuses the zero address.
   /// @param _initialKeys The keys the method trusts from deployment.
@@ -107,7 +94,12 @@ abstract contract PolicyMethodRoles is
     string memory _moduleVersion
   ) Ownable(_initialOwner) {
     require(_initialAdmin != address(0), PolicyMethodRoles_AdminInvalidAdmin(_initialAdmin));
-    _validateTrustedKeys(_initialKeys);
+    // The hook checks its own copy, so a hook that writes its argument cannot change the list stored below.
+    bytes32[] memory _candidate = new bytes32[](_initialKeys.length);
+    for (uint256 _i; _i < _initialKeys.length; ++_i) {
+      _candidate[_i] = _initialKeys[_i];
+    }
+    _validateTrustedKeys(_candidate);
     _keyAdmin = _initialAdmin;
     _storedKeys = _initialKeys;
     _name = _moduleName;
@@ -170,8 +162,8 @@ abstract contract PolicyMethodRoles is
   }
 
   /// @inheritdoc IPolicyMethodAdmin
-  function pendingAdmin() external view returns (address _admin) {
-    _admin = _pendingKeyAdmin;
+  function pendingAdmin() external view returns (address _pendingAdmin) {
+    _pendingAdmin = _pendingKeyAdmin;
   }
 
   /// @inheritdoc IPolicyMethod
@@ -254,8 +246,10 @@ abstract contract PolicyMethodRoles is
   /// @dev An override must revert on a set the method refuses. `setTrustedKeys` and the constructor both run
   ///      it. The constructor's call runs inside this base's constructor, before the inheriting contract's own
   ///      constructor body. At that point an immutable of the inheriting contract is not assigned yet and reads
-  ///      as zero. An override therefore reads only constants and its `_keys` argument, never an immutable or
-  ///      storage that the inheriting contract sets.
+  ///      as zero, and so does storage the inheriting contract sets. An override therefore relies on constants
+  ///      and its `_keys` argument. It may read an immutable or storage that the inheriting contract sets only
+  ///      when it reads the zero value as the constructor's call. It must not write `_keys`: the hook receives
+  ///      a copy of the list that gets stored, so a write changes nothing stored and only defeats the check.
   /// @param _keys The candidate trusted keys.
   function _validateTrustedKeys(bytes32[] memory _keys) internal view virtual;
 }

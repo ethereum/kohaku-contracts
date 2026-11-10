@@ -119,6 +119,9 @@ AmbireRecoveryActionValidateSigTest
 ├── when the grant is too short to name an address
 │   ├── it should revert
 │   └── it should name index 1
+├── when the grant stops one byte short of an address
+│   ├── it should revert
+│   └── it should name index 1
 ├── when the revoke writes a value
 │   ├── it should revert
 │   └── it should name index 2

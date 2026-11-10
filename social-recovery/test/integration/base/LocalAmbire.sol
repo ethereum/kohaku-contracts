@@ -22,11 +22,13 @@ interface ILocalAmbireValidator {
 ///      routes (a slot-bound validator for a signature ending in 255, else a key's signature over
 ///      keccak256(account, chain id, nonce, calls) in the account-bound form), `executeMultiple`, `executeBySender`
 ///      for a privileged caller, the anti-bricking check after every batch, the batch loop that skips a call to
-///      address(0), a fallback that answers any unknown call with nothing, `validateUserOp` with its sponsored path
-///      for an empty signature, and the ERC-1271 rule: a key at 2 may sign a hash in the unprotected form, while a
-///      key at 1 must sign the account-bound form. Of the signature validator it keeps the two ECDSA modes the
-///      stories sign with: unprotected, a signature over the hash itself, and standard, a signature over the
-///      EIP-712 AmbireOperation(account, hash) envelope. The other modes revert here.
+///      address(0), a fallback that delegates any unknown call to the handler named under 0x6969 and answers with
+///      nothing when none is set, `validateUserOp` with its sponsored path for an empty signature, and the ERC-1271
+///      rule: a key at 2 may sign a hash in the unprotected form, while a key at 1 must sign the account-bound form.
+///      Of the signature validator it keeps the two ECDSA modes the stories sign with: unprotected, a signature over
+///      the hash itself, and standard, a signature over the EIP-712 AmbireOperation(account, hash) envelope. The other
+///      modes revert here. The fallback follows the deployed implementation, not the reference source, whose
+///      fallback is empty.
 // The transcription keeps Ambire's own revert strings and comparisons.
 // solhint-disable gas-custom-errors, reason-string, gas-strict-inequalities
 contract LocalAmbireAccount {
@@ -47,6 +49,8 @@ contract LocalAmbireAccount {
   /// @notice The first mode byte past the validator's modes; a 65-byte signature with such a byte is unprotected.
   uint8 internal constant _SIGMODE_LAST_UNUSED = 6;
 
+  /// @notice The privilege key whose entry names the fallback handler on the deployed implementation.
+  address internal constant _FALLBACK_HANDLER_SLOT = address(0x6969);
   /// @notice The privilege table, address to value, at storage slot 0.
   mapping(address _addr => bytes32 _privilege) public privileges;
   /// @notice The execute nonce.
@@ -58,8 +62,23 @@ contract LocalAmbireAccount {
   /// @notice Accepts the native asset.
   receive() external payable {}
 
-  /// @notice Answers any unknown call with nothing, as the account does without a fallback handler.
-  fallback() external payable {}
+  /// @notice Runs the fallback handler on any unknown call, as the deployed implementation does. It reads the
+  ///         privilege entry under 0x6969 and keeps its low twenty bytes as the handler's address. When that
+  ///         address is nonzero, the call is delegated with its whole calldata to it, so the handler runs in the
+  ///         account's own storage, and the account returns or reverts with the handler's returndata. When it is
+  ///         zero, whatever the upper bytes of the entry hold, the call is accepted and returns nothing.
+  // solhint-disable-next-line no-complex-fallback
+  fallback() external payable {
+    address _handler = address(uint160(uint256(privileges[_FALLBACK_HANDLER_SLOT])));
+    if (_handler == address(0)) return;
+    assembly {
+      calldatacopy(0, 0, calldatasize())
+      let _result := delegatecall(gas(), _handler, 0, calldatasize(), 0, 0)
+      returndatacopy(0, 0, returndatasize())
+      if iszero(_result) { revert(0, returndatasize()) }
+      return(0, returndatasize())
+    }
+  }
 
   /// @notice Writes one privilege entry. Only the account itself may call it.
   function setAddrPrivilege(address addr, bytes32 priv) external payable {

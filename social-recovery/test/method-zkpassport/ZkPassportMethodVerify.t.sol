@@ -166,12 +166,13 @@ contract ZkPassportMethodVerifyTest is MethodZkPassportFixture {
     _zkAssertRefused(_zkDefaultConfig(), _defaultDigest, _proof);
   }
 
-  /// When the root verifier word names an address with no code, the proof is refused. A call there returns nothing.
+  /// When the method is deployed with a root verifier word naming an address with no code, the proof is refused. A
+  /// call there returns nothing, and the router is fixed at deployment, so no later rotation can move it.
   function test_WhenTheRootVerifierWordHoldsNoCode() external {
     // it should refuse the proof
     bytes memory _proof = _zkDefaultHonestProof();
-    vm.prank(_keyAdmin);
-    _method.setTrustedKeys(_zkKeys(makeAddr('rootWithoutCode'), address(_verifierHelperMock)));
+    _method =
+      new ZkPassportMethod(_pauseHolder, _keyAdmin, _zkKeys(makeAddr('rootWithoutCode'), address(_verifierHelperMock)));
     _zkAssertRefused(_zkDefaultConfig(), _defaultDigest, _proof);
   }
 
@@ -535,26 +536,35 @@ contract ZkPassportMethodVerifyTest is MethodZkPassportFixture {
                      WHICH WORDS A PROOF READS
   ///////////////////////////////////////////////////////////////*/
 
-  /// After the key admin replaces the keys, verify calls the new root and verifier helper and never the old root. A
-  /// reviewed zkPassport release takes effect in one transaction.
-  function test_WhenTheKeysNameANewRootAndVerifierHelper() external {
-    MethodZkPassportRootVerifierMock _newRoot = new MethodZkPassportRootVerifierMock();
+  /// After any rotation the key admin can make, which moves the version, the helper pin and the snapshots, verify
+  /// still calls the root verifier the constructor took from the initial list, once, and accepts through the new
+  /// helper. The router is the one value the key admin cannot redirect. `_release` builds any nonzero canonical
+  /// version word, and each snapshot seed any clean address, nonzero except for the guardian.
+  function test_WhenAnyRotationIsAccepted(
+    uint256 _release,
+    uint256 _subVerifier,
+    uint256 _registry,
+    uint256 _rootAdmin,
+    uint256 _rootGuardian,
+    uint256 _subVerifierAdmin
+  ) external {
     MethodZkPassportVerifierHelperMock _newVerifierHelper = new MethodZkPassportVerifierHelperMock();
+    bytes32 _version = bytes32(bound(_release, 1, type(uint48).max) << 208);
+    bytes32[] memory _keys = _zkKeys(address(_rootMock), address(_newVerifierHelper));
+    _keys[_WORD_VERSION] = _version;
+    _keys[_WORD_SUB_VERIFIER] = bytes32(bound(_subVerifier, 1, type(uint160).max));
+    _keys[_WORD_REGISTRY] = bytes32(bound(_registry, 1, type(uint160).max));
+    _keys[_WORD_ROOT_ADMIN] = bytes32(bound(_rootAdmin, 1, type(uint160).max));
+    _keys[_WORD_ROOT_GUARDIAN] = bytes32(bound(_rootGuardian, 0, type(uint160).max));
+    _keys[_WORD_SUB_VERIFIER_ADMIN] = bytes32(bound(_subVerifierAdmin, 1, type(uint160).max));
+    vm.prank(_keyAdmin);
+    _method.setTrustedKeys(_keys);
+
     MethodZkPassportProofVerificationData memory _data = _zkProofData(_zkPublicInputs(8));
-    MethodZkPassportProofVerificationParams memory _params = _zkParams(
-      _ZK_VERSION_0_21_0, _data, _defaultCommittedInputs, _defaultValidity, _defaultDomain, _defaultScope, false
-    );
+    MethodZkPassportProofVerificationParams memory _params =
+      _zkParams(_version, _data, _defaultCommittedInputs, _defaultValidity, _defaultDomain, _defaultScope, false);
     _zkSetAnswers(
       _rootMock,
-      _verifierHelperMock,
-      _params,
-      true,
-      _defaultIdentifier,
-      address(_verifierHelperMock),
-      _zkRender(_defaultDigest)
-    );
-    _zkSetAnswers(
-      _newRoot,
       _newVerifierHelper,
       _params,
       true,
@@ -562,16 +572,11 @@ contract ZkPassportMethodVerifyTest is MethodZkPassportFixture {
       address(_newVerifierHelper),
       _zkRender(_defaultDigest)
     );
-    bytes memory _proof = _zkProof(_data, _defaultCommittedInputs);
 
-    vm.prank(_keyAdmin);
-    _method.setTrustedKeys(_zkKeys(address(_newRoot), address(_newVerifierHelper)));
-
-    // it should call the new root and not the old one
-    vm.expectCall(address(_rootMock), abi.encodeWithSelector(MethodZkPassportRootVerifierMock.verify.selector), 0);
-    vm.expectCall(address(_newRoot), _zkRootCall(_params), 1);
+    // it should call the root verifier fixed at deployment once
+    vm.expectCall(address(_rootMock), _zkRootCall(_params), 1);
     // it should accept the proof
-    _zkAssertAccepted(_zkDefaultConfig(), _defaultDigest, _proof);
+    _zkAssertAccepted(_zkDefaultConfig(), _defaultDigest, _zkProof(_data, _defaultCommittedInputs));
   }
 
   /// Once the keys name a new verifier helper, a root verifier answer naming the former verifier helper is refused.

@@ -64,6 +64,6 @@ interface IPolicyMethodAdmin {
   function renounceAdmin() external;
 
   /// @notice The pending admin, or address(0) when no transfer is open.
-  /// @return _admin The address one acceptance away from the key admin role.
-  function pendingAdmin() external view returns (address _admin);
+  /// @return _pendingAdmin The address one acceptance away from the key admin role.
+  function pendingAdmin() external view returns (address _pendingAdmin);
 }

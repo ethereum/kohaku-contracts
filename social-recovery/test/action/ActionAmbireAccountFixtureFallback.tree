@@ -1,0 +1,6 @@
+ActionAmbireAccountFixtureFallbackTest
+├── when the entry holds only upper bytes
+│   ├── it should accept the call and return nothing
+│   └── it should run no handler
+└── when the entry holds upper bytes and a handler
+    └── it should run the handler in the account's storage

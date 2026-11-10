@@ -145,7 +145,7 @@ contract IPolicyMethodAdminTest is InterfacesArtifacts {
   function test_WhenPendingAdminIsReadFromTheAbi() external {
     // it should declare the specified parameters returns and mutability
     string memory _json = _interfacesLoad('IPolicyMethodAdmin');
-    _interfacesAssertFunction(_json, 'pendingAdmin', 'view', '', 'address _admin');
+    _interfacesAssertFunction(_json, 'pendingAdmin', 'view', '', 'address _pendingAdmin');
   }
 
   /// Checks that renounceAdmin in the compiled ABI of IPolicyMethodAdmin has the specified parameter and return types

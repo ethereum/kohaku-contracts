@@ -212,6 +212,43 @@ contract PauseStopsSuspectRecovery is IntegrationBase {
     assertEq(_privilegeOf(_account, _newKey.addr), bytes32(0), 'the new key was not installed on Maya account');
   }
 
+  /// @notice Maya's four approvers all sign, and a front-runner submits only places 0, 2 and 3, which satisfy the rule
+  ///         without the Aadhaar proof. The attempt's used methods are then the wallet, zkPassport and passkey ones, so
+  ///         the pause holder of zkPassport, a method the subset used, can stop it and end the attempt by veto.
+  function test_WhenAFrontRunnerSubmitsASubsetAndAUsedMethodIsStopped() external {
+    // The front-runner opens with a subset of the gathered proofs.
+    bytes memory _payload = _frontRunnerOpensWithoutTheAadhaarPlace();
+
+    // The pause holder stops zkPassport, which the subset used, and vetoes the attempt.
+    _pauseHolderStops(address(_zkPassportMethod));
+    _vetoes(_identitySafe, 1, address(_zkPassportMethod));
+    assertEq(uint8(_attempt(_account).state), uint8(IPolicyManager.AttemptState.Cancelled), 'the veto ended it');
+
+    // The wait passes and the handover runs nowhere.
+    skip(5 days);
+    vm.prank(_executor);
+    vm.expectPartialRevert(IRecoveryAction.RecoveryAction_NotConsumable.selector);
+    _action.executeHandover(_account, _payload);
+    _assertKeyControls(_account, _originalKey, 'the holder key');
+  }
+
+  /// @notice Maya's four approvers all sign, and a front-runner submits only places 0, 2 and 3. The rule names the
+  ///         Aadhaar method, but the subset did not use it, so a veto naming it is refused with MethodNotUsed even
+  ///         while it is stopped: the front-runner chose which methods can veto this attempt.
+  function test_WhenAFrontRunnerSubmitsASubsetAndAnUnusedMethodIsStopped() external {
+    // The front-runner opens with a subset of the gathered proofs.
+    _frontRunnerOpensWithoutTheAadhaarPlace();
+
+    // The pause holder stops the Aadhaar method and names it in a veto. It fails.
+    _pauseHolderStops(address(_aadhaarMethod));
+    vm.prank(_identitySafe);
+    vm.expectRevert(
+      abi.encodeWithSelector(IPolicyManager.PolicyManager_MethodNotUsed.selector, uint64(1), address(_aadhaarMethod))
+    );
+    _manager.cancelByVeto(_account, address(_action), 1, address(_aadhaarMethod));
+    assertEq(uint8(_attempt(_account).state), uint8(IPolicyManager.AttemptState.Waiting), 'the attempt still waits');
+  }
+
   /// @notice Maya lost her key and Ana does not answer, so her clause needs the Aadhaar guardian: she waits for the
   ///         unpause, then recovers. A pause holder who is compromised, or renounces while stopped, can strand a holder
   ///         for good.
@@ -336,6 +373,27 @@ contract PauseStopsSuspectRecovery is IntegrationBase {
       _signApproval(_req, _r, _filled[_i]);
     }
     _submits(_friend, _req);
+  }
+
+  /// @notice Ana, the Aadhaar guardian, the passport holder and Maya's passkey all approve a handover to the new key,
+  ///         and a front-runner who saw the gathered proofs submits only places 0, 2 and 3, leaving the Aadhaar proof
+  ///         out. Each proof signs its own place's digest, so dropping one leaves the others valid.
+  function _frontRunnerOpensWithoutTheAadhaarPlace() internal returns (bytes memory _payload) {
+    Rule memory _r = _holderRule;
+    _payload = _handover(_newKey.addr, _originalKey.addr);
+    IPolicyManager.AttemptRequest memory _gathered =
+      _request(_account, _r, _payload, _noPayment(), uint48(block.timestamp + 24 hours));
+    _signApproval(_gathered, _r, 0);
+    _signApproval(_gathered, _r, 1);
+    _signApproval(_gathered, _r, 2);
+    _signApproval(_gathered, _r, 3);
+
+    IPolicyManager.AttemptRequest memory _subset = _copy(_gathered);
+    _subset.proofs = new IPolicyManager.ProofPlace[](3);
+    (_subset.proofs[0], _subset.proofs[1], _subset.proofs[2]) =
+    (_gathered.proofs[0], _gathered.proofs[2], _gathered.proofs[3]);
+    _submits(makeAddr('front-runner'), _subset);
+    assertEq(uint8(_attempt(_account).state), uint8(IPolicyManager.AttemptState.Waiting), 'the subset opened');
   }
 
   /// @notice The pause holder stops a method.

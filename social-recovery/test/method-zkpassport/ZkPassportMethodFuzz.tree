@@ -24,6 +24,9 @@ ZkPassportMethodFuzzTest
 │   └── it should keep the previous words
 ├── when the key admin sets a canonical version word for any release
 │   └── it should store the word as given
+├── when the key admin proposes any other root verifier
+│   ├── it should revert
+│   └── it should keep the previous words
 ├── when the config carries any identifier domain scope and validity
 │   └── it should pass them to the root verifier unchanged
 ├── when the root returns any identifier other than the configured one

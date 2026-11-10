@@ -178,17 +178,16 @@ contract PolicyManagerConsumeTest is PolicyManagerAcceptanceTestBase {
   }
 
   /// @notice Whatever wait the holder committed, the spend is refused one second before the wait has
-  ///         passed since the set was accepted, and goes through the second it has. `_waitSeed` picks
-  ///         a wait from one second to a hundred years.
-  function test_WhenTheWaitIsAnyLength(uint256 _waitSeed) external {
+  ///         passed since the set was accepted, so no wait can be cut short by a second. `_waitSeed`
+  ///         picks a wait from one second to a hundred years.
+  function test_WhenOneSecondOfAnyWaitIsLeft(uint256 _waitSeed) external {
     // casting to 'uint48' is safe because the wait is bound to a hundred years
     // forge-lint: disable-next-line(unsafe-typecast)
     uint48 _wait = uint48(bound(_waitSeed, 1, 100 * 365 days));
     _useDefaultRule(_wait, false);
     _commitRule();
-    uint256 _acceptedAt = block.timestamp;
+    uint256 _end = block.timestamp + _wait;
     IPolicyManager.AttemptRequest memory _opening = _open(_places(0, 1, 2));
-    uint256 _end = _acceptedAt + _wait;
 
     vm.warp(_end - 1);
     vm.expectRevert(
@@ -197,6 +196,21 @@ contract PolicyManagerConsumeTest is PolicyManagerAcceptanceTestBase {
       abi.encodeWithSelector(IPolicyManager.PolicyManager_WaitNotOver.selector, uint48(_end - 1), uint48(_end))
     );
     _consumeAsAccount(1, keccak256(_opening.payload));
+
+    assertEq(uint8(_state(_account, _action).attempt.state), uint8(IPolicyManager.AttemptState.Waiting), 'waiting');
+  }
+
+  /// @notice Whatever wait the holder committed, the spend goes through at the exact second the wait
+  ///         has passed since the set was accepted, so a recovery is never held past its wait.
+  ///         `_waitSeed` picks a wait from one second to a hundred years.
+  function test_WhenAnyWaitEndsThisSecond(uint256 _waitSeed) external {
+    // casting to 'uint48' is safe because the wait is bound to a hundred years
+    // forge-lint: disable-next-line(unsafe-typecast)
+    uint48 _wait = uint48(bound(_waitSeed, 1, 100 * 365 days));
+    _useDefaultRule(_wait, false);
+    _commitRule();
+    uint256 _end = block.timestamp + _wait;
+    IPolicyManager.AttemptRequest memory _opening = _open(_places(0, 1, 2));
 
     vm.warp(_end);
     _consumeAsAccount(1, keccak256(_opening.payload));

@@ -28,4 +28,13 @@ interface IZkPassportMethod {
   ///         minor and patch as three big-endian `uint16` values in its first six bytes and zero after them.
   /// @param _word The refused version word.
   error ZkPassportMethod_VersionWordNotCanonical(bytes32 _word);
+
+  /// @notice The trusted-key list names another root verifier than the one fixed at deployment. The root
+  ///         verifier is the one word the key admin cannot replace: a root verifier of the admin's choosing could
+  ///         answer valid for any identifier and so forge every credential whose config the admin knows.
+  ///         zkPassport moves its versions behind one root verifier address, so a fixed address costs nothing at
+  ///         a version change.
+  /// @param _fixed The root verifier word fixed at deployment.
+  /// @param _proposed The refused list's root verifier word.
+  error ZkPassportMethod_RootVerifierChanged(bytes32 _fixed, bytes32 _proposed);
 }

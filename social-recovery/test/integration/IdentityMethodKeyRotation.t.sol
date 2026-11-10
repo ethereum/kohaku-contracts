@@ -6,17 +6,17 @@ import {IPolicyManager} from 'interfaces/IPolicyManager.sol';
 import {IDeployIdentity} from 'script/IDeployIdentity.sol';
 import {PolicyMethodRoles} from 'contracts/methods/roles/PolicyMethodRoles.sol';
 
-import {
-  IZkPassportRootVerifier,
-  IZkPassportVerifierHelper
-} from 'contracts/methods/zkpassport/IZkPassportRootVerifier.sol';
+import {IZkPassportRootVerifier} from 'contracts/methods/zkpassport/IZkPassportRootVerifier.sol';
+import {IZkPassportVerifierHelper} from 'contracts/methods/zkpassport/IZkPassportVerifierHelper.sol';
+import {IZkPassportMethod} from 'contracts/methods/zkpassport/IZkPassportMethod.sol';
 
 import {IntegrationBase} from 'test/integration/base/IntegrationBase.sol';
 import {LocalChain} from 'test/integration/base/LocalDeploy.sol';
 import {LocalIdentityRoles, LocalZkPassportRootVerifier} from 'test/integration/base/LocalWorld.sol';
 
-/// @notice A root verifier a compromised key admin deploys and names in the zkPassport trusted keys: it accepts every
-///         proof and answers the identifier its owner chose, through the verifier helper the method already trusts.
+/// @notice A root verifier a compromised key admin deploys and tries to name in the zkPassport trusted keys: it
+///         accepts every proof and answers the identifier its owner chose, through the verifier helper the method
+///         already trusts.
 /// @dev It stands for the forged verifier the trade-off is about, so it replaces nothing real.
 contract RootVerifierTheKeyAdminControls {
   /// @notice The identifier every proof is answered with.
@@ -371,10 +371,11 @@ contract IdentityMethodKeyRotationOfTheZkPassportVersion is IdentityMethodKeyRot
                              TRADE-OFFS
   ///////////////////////////////////////////////////////////////*/
 
-  /// @notice A compromised key admin names a root verifier it controls in the trusted keys. A proof made without the
-  ///         passport, refused before the change, now counts: Raj, whose rule rests on his passport alone, sees his
-  ///         recovery ended by a forged cancel and loses the account to a forged approval.
-  function test_WhenTheKeyAdminRoutesProofsToARootVerifierItControls() external {
+  /// @notice A compromised key admin tries to name a root verifier it controls in the trusted keys. The method refuses
+  ///         the list with the fixed and the proposed router, so a proof made without the passport stays refused:
+  ///         Raj, whose rule rests on his passport alone, keeps his recovery through the admin's attempt and gets his
+  ///         account back.
+  function test_WhenTheKeyAdminTriesToRouteProofsToARootVerifierItControls() external {
     // Raj set up recovery with his passport alone, and lost his key.
     Person memory _raj = _person('Raj key');
     Person memory _rajNewKey = _person('Raj new key');
@@ -384,13 +385,27 @@ contract IdentityMethodKeyRotationOfTheZkPassportVersion is IdentityMethodKeyRot
     _setUpRecovery(_rajAccount, _raj, _rajRule);
 
     // Raj proves his passport over a handover to his new key, and attempt 1 opens.
-    IPolicyManager.AttemptRequest memory _rajRequest = _request(
-      _rajAccount, _rajRule, _handover(_rajNewKey.addr, _raj.addr), _noPayment(), uint48(block.timestamp + 24 hours)
-    );
+    bytes memory _rajPayload = _handover(_rajNewKey.addr, _raj.addr);
+    IPolicyManager.AttemptRequest memory _rajRequest =
+      _request(_rajAccount, _rajRule, _rajPayload, _noPayment(), uint48(block.timestamp + 24 hours));
     _signApproval(_rajRequest, _rajRule, 0);
     _submits(_relayer, _rajRequest);
 
-    // The attacker, who never held the passport, makes a proof over the cancellation of attempt 1. It is refused.
+    // The compromised key admin names a root verifier the attacker controls, keeping the trusted verifier helper. The
+    // method refuses the list, naming the fixed router and the proposed one, and the trusted keys stay as they were.
+    (,, bytes32[] memory _before,,) = _zkPassportMethod.trustedParties();
+    (bytes32[] memory _proposed, address _forger) = _forgerKeys(_rajRule.places[0]);
+    vm.prank(_identitySafe);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IZkPassportMethod.ZkPassportMethod_RootVerifierChanged.selector, _before[1], bytes32(uint256(uint160(_forger)))
+      )
+    );
+    _zkPassportMethod.setTrustedKeys(_proposed);
+    (,, bytes32[] memory _after,,) = _zkPassportMethod.trustedParties();
+    assertEq(keccak256(abi.encode(_after)), keccak256(abi.encode(_before)), 'the trusted keys did not move');
+
+    // The attacker, who never held the passport, makes a proof over the cancellation of attempt 1. It is still refused.
     IPolicyManager.CancelRequest memory _cancel =
       _cancelRequest(_rajAccount, _rajRule, 1, uint48(block.timestamp + 24 hours));
     bytes memory _forgedProof = _passportProof(keccak256('no passport'), _manager.hashCancel(_cancel, 0));
@@ -400,42 +415,26 @@ contract IdentityMethodKeyRotationOfTheZkPassportVersion is IdentityMethodKeyRot
     vm.expectRevert(_proofRejected(0, address(_zkPassportMethod)));
     _manager.cancelByProofs(_cancel);
 
-    // The compromised key admin names a root verifier the attacker controls, keeping the trusted verifier helper.
-    _keyAdminRoutesToAForger(_rajRule.places[0]);
-
-    // The same forged cancel now ends attempt 1.
-    _submitsCancel(_attacker.addr, _cancel);
-
-    // A proof made the same way approves a handover to the attacker's key, and attempt 2 opens.
-    bytes memory _payload = _handover(_attacker.addr, _raj.addr);
-    IPolicyManager.AttemptRequest memory _forged =
-      _request(_rajAccount, _rajRule, _payload, _noPayment(), uint48(block.timestamp + 24 hours));
-    _append(
-      _forged, _proofPlace(_rajRule, 0, _passportProof(keccak256('no passport'), _manager.hashApproval(_forged, 0)))
-    );
-    _submits(_attacker.addr, _forged);
-
-    // The wait passes, and the attacker takes Raj's account.
+    // The wait passes, and Raj's handover gives his account to his new key.
     skip(5 days);
-    _executes(_attacker.addr, _rajAccount, _payload);
-    _assertKeyControls(_rajAccount, _attacker, 'the attacker');
-    assertEq(_privilegeOf(_rajAccount, _rajNewKey.addr), bytes32(0), 'Raj new key holds nothing');
+    _executes(_executor, _rajAccount, _rajPayload);
+    _assertKeyControls(_rajAccount, _rajNewKey, 'Raj new key');
+    assertEq(_privilegeOf(_rajAccount, _attacker.addr), bytes32(0), 'the attacker holds nothing');
   }
 
   /*///////////////////////////////////////////////////////////////
                               UTILITIES
   ///////////////////////////////////////////////////////////////*/
 
-  /// @notice The key admin names, as the root verifier, one that answers every proof with the credential's identifier,
-  ///         and keeps the verifier helper the method already trusts.
-  function _keyAdminRoutesToAForger(Credential memory _credential) internal {
+  /// @notice The list a compromised key admin would set: the current trusted keys with, as the root verifier, one
+  ///         that answers every proof with the credential's identifier, keeping the verifier helper the method trusts.
+  function _forgerKeys(Credential memory _credential) internal returns (bytes32[] memory _keys, address _forger) {
     (bytes32 _identifier,,,) = abi.decode(_credential.config, (bytes32, string, string, uint256));
-    (,, bytes32[] memory _keys,,) = _zkPassportMethod.trustedParties();
-    RootVerifierTheKeyAdminControls _forger =
-      new RootVerifierTheKeyAdminControls(_identifier, IZkPassportVerifierHelper(address(uint160(uint256(_keys[3])))));
-    _keys[1] = bytes32(uint256(uint160(address(_forger))));
-    vm.prank(_identitySafe);
-    _zkPassportMethod.setTrustedKeys(_keys);
+    (,, _keys,,) = _zkPassportMethod.trustedParties();
+    _forger = address(
+      new RootVerifierTheKeyAdminControls(_identifier, IZkPassportVerifierHelper(address(uint160(uint256(_keys[3])))))
+    );
+    _keys[1] = bytes32(uint256(uint160(_forger)));
   }
 
   /// @notice zkPassport's upstream admin routes a release with a derivation and retires the previous release.

@@ -9,9 +9,10 @@ import {IAmbireRecoveryAction} from 'contracts/actions/ambire/IAmbireRecoveryAct
 ///         29227cc7c13617ccbe0c8b737d1678d30c2c4047 rather than imported as a package.
 /// @dev That commit has no release tag to pin and targets Solidity 0.8.19, so the kit copies
 ///      only the calls the recovery action makes. It describes one account implementation
-///      rather than a kit interface. It mirrors Ambire's source, so it keeps Ambire's names,
-///      parameters included, and Ambire's member order, and ABIs decode the way upstream tools
-///      expect.
+///      rather than a kit interface. It mirrors Ambire's source, so it keeps Ambire's names of
+///      functions, events and parameters, and Ambire's member order, and ABIs decode the way
+///      upstream tools expect. It names a return value only where Ambire leaves it unnamed and
+///      the linter needs a name, as `privilege`.
 interface IAmbireAccount {
   /*///////////////////////////////////////////////////////////////
                               EVENTS
@@ -29,9 +30,9 @@ interface IAmbireAccount {
   /// @notice The account's privilege entry for one address.
   /// @dev A zero entry grants nothing. A value of 1 or 2 marks a key. Any other nonzero value
   ///      marks code the account trusts.
-  /// @param addr The address asked about.
+  /// @param key The address asked about.
   /// @return privilege The entry the account holds for that address.
-  function privileges(address addr) external view returns (bytes32 privilege);
+  function privileges(address key) external view returns (bytes32 privilege);
 
   /// @notice Write one entry of the account's privilege mapping.
   /// @dev Only the account itself may call it, so every write runs inside a batch.

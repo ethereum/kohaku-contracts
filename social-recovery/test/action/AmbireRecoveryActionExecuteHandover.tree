@@ -31,6 +31,9 @@ AmbireRecoveryActionExecuteHandoverTest
 ├── when the removed key is zero
 │   ├── it should revert
 │   └── it should carry the payload
+├── when the payload stops one byte short of two words
+│   ├── it should revert
+│   └── it should carry the payload
 ├── when an address word carries high bits
 │   ├── it should revert
 │   └── it should carry the payload

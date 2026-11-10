@@ -9,5 +9,17 @@ AmbireAccountForkTest
 │   └── it should revert execute with the call's own revert data
 ├── when a mainnet privilege is written
 │   └── it should emit Ambire's event layout
-└── when a sepolia privilege is written
-    └── it should emit Ambire's event layout
+├── when a sepolia privilege is written
+│   └── it should emit Ambire's event layout
+├── when a mainnet fresh account gets an unknown selector
+│   └── it should succeed and return nothing
+├── when a sepolia fresh account gets an unknown selector
+│   └── it should succeed and return nothing
+├── when a mainnet account names a fallback handler
+│   └── it should run the handler in the account's storage
+├── when a sepolia account names a fallback handler
+│   └── it should run the handler in the account's storage
+├── when a mainnet handler entry holds only upper bytes
+│   └── it should succeed and return nothing
+└── when a sepolia handler entry holds only upper bytes
+    └── it should succeed and return nothing

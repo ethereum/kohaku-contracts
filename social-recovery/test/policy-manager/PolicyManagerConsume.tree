@@ -21,8 +21,10 @@ PolicyManagerConsumeTest
 │   └── It should revert with PolicyManager_WaitNotOver.
 ├── When the wait is zero
 │   └── It should consume the attempt in the block it opened.
-├── When the wait is any length
-│   └── It should refuse one second before its end and consume at its end.
+├── When one second of any wait is left
+│   └── It should revert with PolicyManager_WaitNotOver and leave the attempt waiting.
+├── When any wait ends this second
+│   └── It should consume the attempt.
 ├── When the block timestamp is past the uint48 width
 │   └── It should revert with SafeCastOverflowedUintDowncast carrying the width and the timestamp.
 ├── When the payload hash is not the committed one

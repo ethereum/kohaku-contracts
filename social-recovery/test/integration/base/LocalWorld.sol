@@ -4,10 +4,8 @@ pragma solidity 0.8.30;
 import {ERC20} from '@openzeppelin/contracts/token/ERC20/ERC20.sol';
 import {ECDSA} from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 
-import {
-  IZkPassportRootVerifier,
-  IZkPassportVerifierHelper
-} from 'contracts/methods/zkpassport/IZkPassportRootVerifier.sol';
+import {IZkPassportRootVerifier} from 'contracts/methods/zkpassport/IZkPassportRootVerifier.sol';
+import {IZkPassportVerifierHelper} from 'contracts/methods/zkpassport/IZkPassportVerifierHelper.sol';
 
 /// @notice The role addresses the local zkPassport stand-ins answer, which the local identity deployment passes as the
 ///         operator's reviewed inputs.

@@ -1,0 +1,7 @@
+PolicyMethodRolesHookCopyTest
+├── when the hook writes the initial list
+│   ├── it should report the constructor's own list unchanged
+│   └── it should emit TrustedKeysUpdated carrying that list
+└── when the hook writes a set list
+    ├── it should report the admin's list unchanged
+    └── it should emit TrustedKeysUpdated carrying that list

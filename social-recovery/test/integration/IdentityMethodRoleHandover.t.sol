@@ -21,6 +21,8 @@ contract IdentityMethodRoleHandover is IntegrationBase {
 
   /// @notice The hash of the Aadhaar issuer's next signing key.
   bytes32 internal constant _NEW_ISSUER_KEY = keccak256('UIDAI signing key, local issue 2');
+  /// @notice The hash of a key the old admin rotates to while its offer of the role is still open.
+  bytes32 internal constant _INTERIM_ISSUER_KEY = keccak256('UIDAI signing key, interim issue');
 
   /// @notice The holder's account.
   address internal _account;
@@ -54,9 +56,9 @@ contract IdentityMethodRoleHandover is IntegrationBase {
                               THE WALK
   ///////////////////////////////////////////////////////////////*/
 
-  /// @notice The key admin offers the role, the new Safe accepts, and after the issuer rotates the new admin sets the
-  ///         new key and the holder's request opens, while the old admin can no longer set keys. The role had exactly
-  ///         one holder at every moment.
+  /// @notice The key admin offers the role and still rotates the keys while the offer is open. The new Safe accepts,
+  ///         and after the issuer rotates the new admin sets the new key and the holder's request opens, while the old
+  ///         admin can no longer set keys. The role had exactly one holder at every moment.
   function test_WhenTheKeyAdminHandsOnTheRole() external {
     bytes32[] memory _keys = new bytes32[](1);
     _keys[0] = _NEW_ISSUER_KEY;
@@ -72,6 +74,15 @@ contract IdentityMethodRoleHandover is IntegrationBase {
     (address _admin,,,,) = _method.trustedParties();
     assertEq(_admin, _identitySafe, 'the old admin holds the role until the offer is accepted');
 
+    // While the offer is open the old admin still rotates the trusted keys.
+    bytes32[] memory _interim = new bytes32[](1);
+    _interim[0] = _INTERIM_ISSUER_KEY;
+    vm.prank(_identitySafe);
+    _method.setTrustedKeys(_interim);
+    (,, bytes32[] memory _stored,,) = _method.trustedParties();
+    assertEq(_stored.length, 1, 'one issuer key');
+    assertEq(_stored[0], _INTERIM_ISSUER_KEY, 'the old admin rotated while its offer was open');
+
     // The new Safe sends acceptAdmin.
     vm.prank(_newSafe);
     _method.acceptAdmin();
@@ -85,15 +96,19 @@ contract IdentityMethodRoleHandover is IntegrationBase {
     _submits(_relayer, _approversApprove());
     assertEq(uint8(_attempt(_account).state), uint8(IPolicyManager.AttemptState.Waiting), 'the request opened');
 
-    // The old admin sends setTrustedKeys. It fails.
+    // The old admin sends setTrustedKeys. It fails, and the new admin's keys stay.
     vm.prank(_identitySafe);
-    vm.expectPartialRevert(IPolicyMethodAdmin.PolicyMethodRoles_AdminUnauthorizedAccount.selector);
-    _method.setTrustedKeys(_keys);
+    vm.expectRevert(
+      abi.encodeWithSelector(IPolicyMethodAdmin.PolicyMethodRoles_AdminUnauthorizedAccount.selector, _identitySafe)
+    );
+    _method.setTrustedKeys(_interim);
+    (,, _stored,,) = _method.trustedParties();
+    assertEq(_stored[0], _NEW_ISSUER_KEY, 'the old admin no longer rotates');
   }
 
-  /// @notice The pause holder offers the role and the new Safe accepts. The new Safe stops the method, which refuses
-  ///         the holder's Aadhaar proof, and unpauses it, after which the request opens, while the old pause holder can
-  ///         no longer stop anything.
+  /// @notice The pause holder offers the role and still stops and lifts while the offer is open. The new Safe
+  ///         accepts, stops the method, which refuses the holder's Aadhaar proof, and unpauses it, after which the
+  ///         request opens, while the old pause holder can no longer stop or lift anything.
   function test_WhenThePauseHolderHandsOnTheRole() external {
     // The pause holder offers the role to the new Safe.
     vm.prank(_identitySafe);
@@ -103,6 +118,14 @@ contract IdentityMethodRoleHandover is IntegrationBase {
     vm.prank(_newSafe);
     vm.expectPartialRevert(Ownable.OwnableUnauthorizedAccount.selector);
     _method.pause();
+
+    // While the offer is open the old pause holder still stops the method and lifts the stop.
+    vm.prank(_identitySafe);
+    _method.pause();
+    assertTrue(_method.paused(), 'the old pause holder stopped the method while its offer was open');
+    vm.prank(_identitySafe);
+    _method.unpause();
+    assertFalse(_method.paused(), 'the old pause holder lifted the stop while its offer was open');
 
     // The new Safe accepts.
     vm.prank(_newSafe);
@@ -116,16 +139,23 @@ contract IdentityMethodRoleHandover is IntegrationBase {
     vm.expectPartialRevert(IPolicyManager.PolicyManager_MethodStopped.selector);
     _manager.startAttempt(_req);
 
+    // The old pause holder tries to lift the new Safe's stop. It fails, and the method stays stopped.
+    vm.prank(_identitySafe);
+    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, _identitySafe));
+    _method.unpause();
+    assertTrue(_method.paused(), 'the old pause holder no longer lifts a stop');
+
     // The new Safe unpauses the method, and the request opens.
     vm.prank(_newSafe);
     _method.unpause();
     _submits(_relayer, _req);
     assertEq(uint8(_attempt(_account).state), uint8(IPolicyManager.AttemptState.Waiting), 'the request opened');
 
-    // The old pause holder tries to stop the method. It fails.
+    // The old pause holder tries to stop the method. It fails, and the method stays running.
     vm.prank(_identitySafe);
-    vm.expectPartialRevert(Ownable.OwnableUnauthorizedAccount.selector);
+    vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, _identitySafe));
     _method.pause();
+    assertFalse(_method.paused(), 'the old pause holder no longer stops the method');
   }
 
   /*///////////////////////////////////////////////////////////////

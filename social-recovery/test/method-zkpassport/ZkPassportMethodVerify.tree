@@ -85,8 +85,8 @@ ZkPassportMethodVerifyTest
 │   └── it should give the same answer before, during and after the stop
 ├── when a failing proof arrives during a stop
 │   └── it should refuse the proof
-├── when the keys name a new root and verifier helper
-│   ├── it should call the new root and not the old one
+├── when any rotation is accepted
+│   ├── it should call the root verifier fixed at deployment once
 │   └── it should accept the proof
 ├── when the keys name another verifier helper
 │   └── it should refuse a root answer naming the former verifier helper

@@ -3,17 +3,15 @@ pragma solidity 0.8.30;
 
 import {IPolicyMethod} from 'interfaces/IPolicyMethod.sol';
 import {IZkPassportMethod} from 'contracts/methods/zkpassport/IZkPassportMethod.sol';
-import {
-  IZkPassportRootVerifier,
-  IZkPassportVerifierHelper
-} from 'contracts/methods/zkpassport/IZkPassportRootVerifier.sol';
+import {IZkPassportRootVerifier} from 'contracts/methods/zkpassport/IZkPassportRootVerifier.sol';
+import {IZkPassportVerifierHelper} from 'contracts/methods/zkpassport/IZkPassportVerifierHelper.sol';
 import {PolicyMethodRoles} from 'contracts/methods/roles/PolicyMethodRoles.sol';
 
 /// @title ZkPassportMethod
 /// @author defi-wonderland
 /// @notice A policy method that approves a digest with a zkPassport proof. The proof must be made with one
 ///         specific identity document and must bind the digest as its custom data. The method checks it through
-///         zkPassport's root verifier and never accepts development proofs.
+///         zkPassport's root verifier, fixed at deployment, and never accepts development proofs.
 /// @dev The trusted keys are exactly eight words, in this order, each address left-padded to one word:
 ///      0. the accepted zkPassport version,
 ///      1. the root verifier address,
@@ -23,10 +21,16 @@ import {PolicyMethodRoles} from 'contracts/methods/roles/PolicyMethodRoles.sol';
 ///      5. the last reviewed root admin,
 ///      6. zkPassport's last reviewed root guardian, the one word that may be zero,
 ///      7. the last reviewed sub-verifier admin.
-///      `verify` reads only words 0, 1 and 3. The other five record the outside parties the verdict depends
-///      on, as last reviewed. `trustedParties` reports them, so a deployment check can compare them with the
-///      live upstream contracts. A version word holds major, minor and patch as three big-endian `uint16`
-///      values in its first six bytes, and zero in the rest.
+///      The root verifier in word 1 is fixed at deployment: the constructor takes it from the initial list, and
+///      every later list must repeat it. A root verifier the key admin could replace would let the admin point
+///      the method at a contract of its own that answers valid for any identifier, and so forge every credential
+///      whose config it knows. zkPassport moves its versions behind one root verifier address, so the fixed
+///      address costs nothing at a version change: the admin still moves the accepted version and the helper.
+///      The word stays in the list so that `trustedParties` still reports the root verifier, which is a party.
+///      `verify` reads words 0 and 3 and calls the fixed root verifier. The other five words record the outside
+///      parties the verdict depends on, as last reviewed. `trustedParties` reports them, so a deployment check
+///      can compare them with the live upstream contracts. A version word holds major, minor and patch as three
+///      big-endian `uint16` values in its first six bytes, and zero in the rest.
 ///      The config is `abi.encode(bytes32 uniqueIdentifier, string domain, string scope, uint256
 ///      validityPeriodInSeconds)`. It names no zkPassport version. The method routes every proof with the
 ///      accepted version in word 0, so a change of the accepted version keeps committed configs working. The
@@ -63,19 +67,34 @@ contract ZkPassportMethod is PolicyMethodRoles, IZkPassportMethod {
   bytes16 private constant _HEX_DIGITS = '0123456789abcdef';
 
   /*///////////////////////////////////////////////////////////////
+                           STATE VARIABLES
+  ///////////////////////////////////////////////////////////////*/
+
+  /// @notice zkPassport's root verifier, which `verify` calls. The constructor takes it from word 1 of the
+  ///         validated initial list, and `_validateTrustedKeys` refuses every later list whose word 1 differs.
+  /// @dev Only the constructor writes it, so it is fixed at deployment. It is a storage variable and not an
+  ///      immutable so that the method's runtime code stays the compiled runtime code, which the deployment
+  ///      check compares by code hash.
+  address private _rootVerifier;
+
+  /*///////////////////////////////////////////////////////////////
                              CONSTRUCTOR
   ///////////////////////////////////////////////////////////////*/
 
   /// @notice Deploy the method with its two roles and its first eight trusted-key words.
-  /// @dev The initial keys pass through `_validateTrustedKeys`, the same check every later key update passes, so
-  ///      a list no update could set cannot be deployed either. The root verifier is one of the key words, so
-  ///      the constructor takes no separate verifier argument.
+  /// @dev The initial keys pass through `_validateTrustedKeys`, the same check every later key update passes. The
+  ///      initial list fixes the root verifier and passes every other rule a later list must pass. The base
+  ///      constructor validates and stores the list before this body runs, so the root verifier is read from the
+  ///      stored, validated list. The root verifier is one of the key words, so the constructor takes no separate
+  ///      verifier argument.
   /// @param _initialOwner The pause holder.
   /// @param _initialAdmin The key admin.
   /// @param _initialKeys The eight trusted-key words, in the order the contract documents.
   constructor(address _initialOwner, address _initialAdmin, bytes32[] memory _initialKeys)
     PolicyMethodRoles(_initialOwner, _initialAdmin, _initialKeys, 'method-zkpassport', '1.0.0')
-  {}
+  {
+    _rootVerifier = _toAddress(_trustedKey(_ROOT_VERIFIER_KEY));
+  }
 
   /*///////////////////////////////////////////////////////////////
                           EXTERNAL FUNCTIONS
@@ -102,7 +121,7 @@ contract ZkPassportMethod is PolicyMethodRoles, IZkPassportMethod {
     IZkPassportRootVerifier.ProofVerificationParams memory _params =
       _buildParams(_acceptedVersion, _proof, _serviceConfig);
     (bool _valid, bytes32 _returnedIdentifier, IZkPassportVerifierHelper _verifierHelper) =
-      IZkPassportRootVerifier(_toAddress(_trustedKey(_ROOT_VERIFIER_KEY))).verify(_params);
+      IZkPassportRootVerifier(_rootVerifier).verify(_params);
     if (
       !_valid || _returnedIdentifier != _uniqueIdentifier
         || address(_verifierHelper) != _toAddress(_trustedKey(_VERIFIER_HELPER_KEY))
@@ -142,8 +161,11 @@ contract ZkPassportMethod is PolicyMethodRoles, IZkPassportMethod {
   ///      Every word but the version is an address word. An address word with a nonzero upper byte is refused
   ///      instead of truncated, so the stored word is exactly the address that was declared. The version word
   ///      must be canonical, so that one zkPassport release has exactly one word.
+  ///      Word 1 must equal the root verifier fixed at deployment. The constructor's call runs before the fixed
+  ///      root verifier is written, when it reads as zero, and then the check is skipped: that call validates the
+  ///      list that fixes it. A validated word 1 is never zero, so after construction the check always applies.
   /// @param _keys The candidate trusted keys.
-  function _validateTrustedKeys(bytes32[] memory _keys) internal pure override {
+  function _validateTrustedKeys(bytes32[] memory _keys) internal view override {
     require(_keys.length == _TRUSTED_KEY_COUNT, ZkPassportMethod_InvalidTrustedKeysLength(_keys.length));
     for (uint256 _i; _i < _TRUSTED_KEY_COUNT; ++_i) {
       bytes32 _word = _keys[_i];
@@ -151,6 +173,11 @@ contract ZkPassportMethod is PolicyMethodRoles, IZkPassportMethod {
       require(_i != _VERSION_KEY || uint256(_word) << 48 == 0, ZkPassportMethod_VersionWordNotCanonical(_word));
       require(_i == _VERSION_KEY || uint256(_word) >> 160 == 0, ZkPassportMethod_AddressWordNotClean(_i, _word));
     }
+    bytes32 _fixed = bytes32(uint256(uint160(_rootVerifier)));
+    require(
+      _fixed == bytes32(0) || _keys[_ROOT_VERIFIER_KEY] == _fixed,
+      ZkPassportMethod_RootVerifierChanged(_fixed, _keys[_ROOT_VERIFIER_KEY])
+    );
   }
 
   /*///////////////////////////////////////////////////////////////

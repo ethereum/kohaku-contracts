@@ -49,3 +49,19 @@ contract ActionForkCountingTarget {
     ++count;
   }
 }
+
+/// @notice A fallback handler an account can name under 0x6969. Run by delegatecall, it writes a word into
+///         the calling account's storage at a fixed slot and returns the address it runs as.
+contract ActionForkFallbackHandler {
+  /// @notice The storage slot the handler writes in whatever account runs it.
+  bytes32 public constant MARK_SLOT = keccak256('action.fork.fallbackHandler.mark');
+
+  /// @notice Writes `_value` at MARK_SLOT of the running account and returns that account's address.
+  function mark(bytes32 _value) external returns (address _self) {
+    bytes32 _slot = MARK_SLOT;
+    assembly {
+      sstore(_slot, _value)
+    }
+    _self = address(this);
+  }
+}

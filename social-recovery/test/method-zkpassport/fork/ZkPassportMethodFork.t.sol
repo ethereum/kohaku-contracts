@@ -3,10 +3,8 @@ pragma solidity 0.8.30;
 
 import {Test} from 'forge-std/Test.sol';
 import {ZkPassportMethod} from 'contracts/methods/zkpassport/ZkPassportMethod.sol';
-import {
-  IZkPassportRootVerifier,
-  IZkPassportVerifierHelper
-} from 'contracts/methods/zkpassport/IZkPassportRootVerifier.sol';
+import {IZkPassportRootVerifier} from 'contracts/methods/zkpassport/IZkPassportRootVerifier.sol';
+import {IZkPassportVerifierHelper} from 'contracts/methods/zkpassport/IZkPassportVerifierHelper.sol';
 import {ZkPassportBindFixture} from 'test/fixtures/zkpassport/ZkPassportBindFixture.sol';
 
 /// @notice Checks the zkPassport method's copied ABI against zkPassport's contracts deployed on Sepolia, with

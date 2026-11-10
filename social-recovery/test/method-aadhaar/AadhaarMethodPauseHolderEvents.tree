@@ -1,0 +1,7 @@
+AadhaarMethodPauseHolderEventsTest
+├── when the pause holder offers the role
+│   └── it should emit OwnershipTransferStarted with the holder and the nominee
+├── when the nominee accepts the pause holder role
+│   └── it should emit OwnershipTransferred with the former holder and the nominee
+└── when the pause holder renounces the role
+    └── it should emit OwnershipTransferred with the former holder and the zero address

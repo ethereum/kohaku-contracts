@@ -8,6 +8,7 @@ import {IAmbireRecoveryAction} from 'contracts/actions/ambire/IAmbireRecoveryAct
 import {
   ActionForkApprovingValidator,
   ActionForkCountingTarget,
+  ActionForkFallbackHandler,
   ActionForkRefusingTarget,
   IActionAmbireSender,
   IActionAmbireFactory
@@ -32,6 +33,8 @@ contract AmbireAccountForkTest is Test, ActionForkBlocks {
   address internal constant _AMBIRE_FACTORY = 0x26cE6745A633030A6faC5e64e41D21fb6246dc2d;
   /// @notice The key value the extension writes, kohaku-commons src/interfaces/keystore.ts line 104.
   bytes32 internal constant _SIGNER_VALUE = bytes32(uint256(2));
+  /// @notice The privilege key whose entry names the deployed implementation's fallback handler.
+  address internal constant _FALLBACK_HANDLER_SLOT = address(0x6969);
 
   IRecoveryAction internal _action;
   address internal _signer;
@@ -201,5 +204,93 @@ contract AmbireAccountForkTest is Test, ActionForkBlocks {
     _fork('SEPOLIA_RPC_URL', _SEPOLIA_BLOCK);
     // it should emit Ambire's event layout
     _checkPrivilegeEvent();
+  }
+  /*///////////////////////////////////////////////////////////////
+                          FALLBACK HANDLER
+  ///////////////////////////////////////////////////////////////*/
+
+  function _checkFreshFallback() internal {
+    IAmbireAccount _acct = _buildAccount(_AMBIRE_IMPLEMENTATION);
+    assertEq(_acct.privileges(_FALLBACK_HANDLER_SLOT), bytes32(0), 'a fresh account names no handler');
+    vm.prank(makeAddr('anyCaller'));
+    (bool _ok, bytes memory _returned) =
+      address(_acct).call(abi.encodeCall(ActionForkFallbackHandler.mark, (bytes32(uint256(7)))));
+    assertTrue(_ok, 'the unknown call succeeds');
+    assertEq(_returned.length, 0, 'the unknown call returns nothing');
+    assertEq(vm.load(address(_acct), keccak256('action.fork.fallbackHandler.mark')), bytes32(0), 'nothing ran');
+  }
+
+  /// @notice On mainnet a fresh account answers a call with an unknown selector with success and no data,
+  ///         which is why the fit check cannot tell accounts apart by probing them.
+  function test_WhenAMainnetFreshAccountGetsAnUnknownSelector() external {
+    _fork('MAINNET_RPC_URL', _MAINNET_BLOCK);
+    // it should succeed and return nothing
+    _checkFreshFallback();
+  }
+
+  /// @notice The same fresh-account answer on Sepolia.
+  function test_WhenASepoliaFreshAccountGetsAnUnknownSelector() external {
+    _fork('SEPOLIA_RPC_URL', _SEPOLIA_BLOCK);
+    // it should succeed and return nothing
+    _checkFreshFallback();
+  }
+
+  function _checkInstalledFallback() internal {
+    IAmbireAccount _acct = _buildAccount(_AMBIRE_IMPLEMENTATION);
+    ActionForkFallbackHandler _handler = new ActionForkFallbackHandler();
+    _selfWrite(_acct, _FALLBACK_HANDLER_SLOT, bytes32(uint256(uint160(address(_handler)))));
+    bytes32 _value = keccak256('action.fork.fallbackHandler.value');
+
+    vm.prank(makeAddr('anyCaller'));
+    (bool _ok, bytes memory _returned) = address(_acct).call(abi.encodeCall(ActionForkFallbackHandler.mark, (_value)));
+    assertTrue(_ok, 'the handled call succeeds');
+    assertEq(abi.decode(_returned, (address)), address(_acct), 'the handler ran as the account');
+    assertEq(vm.load(address(_acct), _handler.MARK_SLOT()), _value, 'the handler wrote the account storage');
+    assertEq(vm.load(address(_handler), _handler.MARK_SLOT()), bytes32(0), 'the handler storage is untouched');
+  }
+
+  /// @notice On mainnet, once the account names a handler under 0x6969, any caller's unknown selector runs
+  ///         that handler in the account's own storage. Such a handler survives a handover, so it is account
+  ///         authority the holder must recognize.
+  function test_WhenAMainnetAccountNamesAFallbackHandler() external {
+    _fork('MAINNET_RPC_URL', _MAINNET_BLOCK);
+    // it should run the handler in the account's storage
+    _checkInstalledFallback();
+  }
+
+  /// @notice The same handler behavior on Sepolia.
+  function test_WhenASepoliaAccountNamesAFallbackHandler() external {
+    _fork('SEPOLIA_RPC_URL', _SEPOLIA_BLOCK);
+    // it should run the handler in the account's storage
+    _checkInstalledFallback();
+  }
+
+  function _checkMaskedFallback() internal {
+    IAmbireAccount _acct = _buildAccount(_AMBIRE_IMPLEMENTATION);
+    ActionForkFallbackHandler _handler = new ActionForkFallbackHandler();
+    _selfWrite(_acct, _FALLBACK_HANDLER_SLOT, bytes32(uint256(1) << 200));
+
+    vm.prank(makeAddr('anyCaller'));
+    (bool _ok, bytes memory _returned) =
+      address(_acct).call(abi.encodeCall(ActionForkFallbackHandler.mark, (keccak256('action.fork.masked'))));
+    assertTrue(_ok, 'the unknown call succeeds');
+    assertEq(_returned.length, 0, 'the unknown call returns nothing');
+    assertEq(vm.load(address(_acct), _handler.MARK_SLOT()), bytes32(0), 'nothing ran');
+  }
+
+  /// @notice On mainnet an entry under 0x6969 whose low twenty bytes are zero names no handler, whatever its upper
+  ///         bytes hold, so an unknown call still succeeds with no data. The local stand-ins read the entry the same
+  ///         way.
+  function test_WhenAMainnetHandlerEntryHoldsOnlyUpperBytes() external {
+    _fork('MAINNET_RPC_URL', _MAINNET_BLOCK);
+    // it should succeed and return nothing
+    _checkMaskedFallback();
+  }
+
+  /// @notice The same masked entry on Sepolia.
+  function test_WhenASepoliaHandlerEntryHoldsOnlyUpperBytes() external {
+    _fork('SEPOLIA_RPC_URL', _SEPOLIA_BLOCK);
+    // it should succeed and return nothing
+    _checkMaskedFallback();
   }
 }

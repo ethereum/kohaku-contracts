@@ -38,14 +38,25 @@ abstract contract SetUpRecovery is IntegrationBase {
                               THE WALK
   ///////////////////////////////////////////////////////////////*/
 
-  /// @notice One batch binds the kit and commits Maya's rule, the holder's key keeps working as before, and a recovery
-  ///         works from then on. The holder gets a way back into the account without giving up their key.
+  /// @notice One batch binds the kit and commits Maya's rule, writing the kit's entry and keeping the holder's key at
+  ///         its value, the holder's key keeps working as before, and a recovery works from then on. The holder gets a
+  ///         way back into the account without giving up their key.
   function test_WhenTheHolderSetsUpRecoveryInOneBatch() external {
     // The holder writes out Maya's rule and its encrypted backup off chain.
     Rule memory _r = _mayaRule(_account);
 
     // The holder signs one batch, the kit's binding then the commitment at nonce 1, and it reaches the account.
     _holderSends(_batch(_bindKitCall(_account), _commitCall(_account, _r, 1)));
+
+    // The batch wrote the kit's entry, the binding that routes the account to this action, and left the holder's key
+    // at the signer value 2 a fresh account gives it.
+    assertEq(_privilegeOf(_account, _action.KIT_SLOT()), _action.BINDING(), 'KIT_SLOT holds the binding');
+    assertEq(
+      _privilegeOf(_account, _action.KIT_SLOT()),
+      keccak256(abi.encode(address(_action), bytes(''))),
+      'the binding names this action with empty data'
+    );
+    assertEq(_privilegeOf(_account, _originalKey.addr), bytes32(uint256(2)), 'the holder key keeps its value');
 
     // Everyday use is unchanged: an ordinary transfer signed with the original key still runs.
     uint256 _friendBalance = _friend.balance;

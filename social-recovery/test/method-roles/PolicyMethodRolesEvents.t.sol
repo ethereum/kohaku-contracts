@@ -2,6 +2,7 @@
 pragma solidity 0.8.30;
 
 import {Ownable} from '@openzeppelin/contracts/access/Ownable.sol';
+import {Ownable2Step} from '@openzeppelin/contracts/access/Ownable2Step.sol';
 import {Vm} from 'forge-std/Vm.sol';
 import {IPolicyMethodAdmin} from 'interfaces/IPolicyMethodAdmin.sol';
 import {IPolicyMethodPause} from 'interfaces/IPolicyMethodPause.sol';
@@ -79,6 +80,38 @@ contract PolicyMethodRolesEventsTest is MethodRolesTestBase {
     for (uint256 _j = 0; _j < _declared.length; _j++) {
       assertTrue(_seen[_j], 'declared event not emitted');
     }
+  }
+
+  /// @notice Offering the pause holder role emits OwnershipTransferStarted with the current holder and the
+  ///         nominee. A watcher sees the stop changing hands before the nominee can use it.
+  function test_WhenThePauseHolderOffersTheRole() external {
+    // it should emit OwnershipTransferStarted with the holder and the nominee.
+    vm.expectEmit(true, true, true, true, address(_roles));
+    emit Ownable2Step.OwnershipTransferStarted(_pauseHolder, _nominee);
+    vm.prank(_pauseHolder);
+    _roles.transferOwnership(_nominee);
+  }
+
+  /// @notice Accepting the pause holder role emits OwnershipTransferred with the former holder and the
+  ///         nominee. A watcher learns who can stop recoveries on this method from that block on.
+  function test_WhenTheNomineeAcceptsThePauseHolderRole() external {
+    vm.prank(_pauseHolder);
+    _roles.transferOwnership(_nominee);
+    // it should emit OwnershipTransferred with the former holder and the nominee.
+    vm.expectEmit(true, true, true, true, address(_roles));
+    emit Ownable.OwnershipTransferred(_pauseHolder, _nominee);
+    vm.prank(_nominee);
+    _roles.acceptOwnership();
+  }
+
+  /// @notice Renouncing the pause holder role emits OwnershipTransferred with the former holder and the zero
+  ///         address. A watcher learns that nobody can stop or resume this method any more.
+  function test_WhenThePauseHolderRenouncesTheRole() external {
+    // it should emit OwnershipTransferred with the former holder and the zero address.
+    vm.expectEmit(true, true, true, true, address(_roles));
+    emit Ownable.OwnershipTransferred(_pauseHolder, address(0));
+    vm.prank(_pauseHolder);
+    _roles.renounceOwnership();
   }
 
   /// @dev The topics of the six events the two role interfaces declare, the only ones a watcher decodes.

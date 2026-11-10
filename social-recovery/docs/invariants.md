@@ -146,7 +146,8 @@ The ids are not consecutive: the gaps are properties of the SDK and the wallet's
 - `test/policy-manager/PolicyManagerConsume.t.sol`: `test_WhenTheWaitIsNotOver`
 - `test/policy-manager/PolicyManagerConsume.t.sol`: `test_WhenOneSecondOfTheWaitIsLeft`
 - `test/policy-manager/PolicyManagerConsume.t.sol`: `test_WhenTheWaitIsZero`
-- `test/policy-manager/PolicyManagerConsume.t.sol`: `test_WhenTheWaitIsAnyLength`
+- `test/policy-manager/PolicyManagerConsume.t.sol`: `test_WhenOneSecondOfAnyWaitIsLeft`
+- `test/policy-manager/PolicyManagerConsume.t.sol`: `test_WhenAnyWaitEndsThisSecond`
 
 ## I-7
 
@@ -333,7 +334,7 @@ The ids are not consecutive: the gaps are properties of the SDK and the wallet's
 
 **In short.** The lost key cannot take the account back after recovery.
 
-**Property.** After a recovery completes, the replaced authority, which held power on the account when the handover executed, no longer holds it, removed by the committed action's batch in the account's own frame, on the chain the recovery ran on, and the action refuses a handover whose replaced authority holds no power, so a completed recovery never leaves the lost key in place. Authorities installed outside the handover's reach, a second validator, an extra owner, another module, are not touched by it and are the holder's to enumerate at setup.
+**Property.** After a recovery completes, the replaced authority, which held power on the account when the handover executed, no longer holds it, removed by the committed action's batch in the account's own frame, on the chain the recovery ran on, and the action refuses a handover whose replaced authority holds no power, so a completed recovery never leaves the lost key in place. Authorities installed outside the handover's reach, a second validator, an extra owner, another module, a fallback handler, are not touched by it and are the holder's to enumerate at setup.
 
 **Rules out.** Re-armed credential within the controlled authority, silent partial disarm.
 
@@ -349,6 +350,8 @@ The ids are not consecutive: the gaps are properties of the SDK and the wallet's
 - `test/action/AmbireRecoveryActionValidateSig.t.sol`: `test_RevertWhen_TheRemovedEntryIsTheKitSlot`
 - `test/action/AmbireRecoveryActionExecuteHandover.t.sol`: `test_WhenTheLiveAccountRunsTheApprovedBatch`
 - `test/action/AmbireRecoveryActionExecuteHandover.t.sol`: `test_RevertWhen_TheLiveRemovedKeyHoldsNoKeyValue`
+- `test/integration/FallbackHandlerSurvivesRecovery.t.sol`: `test_WhenAHandlerOutlivesTheRecovery`
+- `test/integration/FallbackHandlerSurvivesRecovery.t.sol`: `test_WhenTheNewKeyClearsTheHandlerFirst`
 
 ## I-18
 
@@ -444,7 +447,7 @@ The ids are not consecutive: the gaps are properties of the SDK and the wallet's
 - `test/integration/PauseStopsSuspectRecovery.t.sol`: `test_WhenTheStoppedMethodIsTheLastUsedMethod`
 - `test/integration/PauseStopsSuspectRecovery.t.sol`: `test_WhenTheStoppedMethodIsTheMiddleOfTheUsedMethods`
 - `test/integration/IdentityMethodKeyRotation.t.sol`: `test_WhenTheKeyAdminForgesAProof`
-- `test/integration/IdentityMethodKeyRotation.t.sol`: `test_WhenTheKeyAdminRoutesProofsToARootVerifierItControls`
+- `test/integration/IdentityMethodKeyRotation.t.sol`: `test_WhenTheKeyAdminTriesToRouteProofsToARootVerifierItControls`
 - `test/integration/IdentityMethodRoleHandover.t.sol`: `test_WhenTheKeyAdminHandsOnTheRole`
 - `test/integration/IdentityMethodRoleHandover.t.sol`: `test_WhenThePauseHolderHandsOnTheRole`
 

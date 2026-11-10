@@ -323,7 +323,10 @@ abstract contract IntegrationBase is Test, LocalDeploy {
     _code = ActionAmbireProxy.creationCode(_ambireImplementation, _key, _SIGNER_PRIVILEGE);
   }
 
-  /// @notice The factory salt the wallet uses for an account.
+  /// @notice The factory salt this fixture uses for an account, derived from the account's key. The fixture does not
+  ///         need it: the creation code already embeds the key and the implementation, so accounts with different
+  ///         keys, or one key's plain and entry-point accounts, get different addresses under any one salt. The
+  ///         Kohaku wallet itself deploys every account with salt zero.
   function _accountSalt(address _key) internal pure returns (uint256 _salt) {
     _salt = uint256(uint160(_key));
   }

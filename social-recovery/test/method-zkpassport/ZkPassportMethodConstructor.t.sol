@@ -29,6 +29,31 @@ contract ZkPassportMethodConstructorTest is MethodZkPassportFixture {
     }
   }
 
+  /// The root verifier in the initial list is the one every later list must keep. A list that keeps it is
+  /// accepted, and a list naming the fixture's other router is refused with the fixed and the proposed words. The
+  /// key admin can then never point the method at a router of its own.
+  function test_WhenTheInitialListNamesARootVerifier() external {
+    address _fixed = makeAddr('deployedRoot');
+    ZkPassportMethod _deployed =
+      new ZkPassportMethod(_pauseHolder, _keyAdmin, _zkKeys(_fixed, address(_verifierHelperMock)));
+
+    // it should accept a later list that keeps that root verifier
+    bytes32[] memory _kept = _zkKeys(_fixed, makeAddr('laterVerifierHelper'));
+    vm.prank(_keyAdmin);
+    _deployed.setTrustedKeys(_kept);
+    (,, bytes32[] memory _stored,,) = _deployed.trustedParties();
+    assertEq(_stored[_WORD_ROOT], _zkWord(_fixed), 'root verifier word');
+
+    // it should refuse a later list naming another root verifier
+    vm.prank(_keyAdmin);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IZkPassportMethod.ZkPassportMethod_RootVerifierChanged.selector, _zkWord(_fixed), _zkWord(address(_rootMock))
+      )
+    );
+    _deployed.setTrustedKeys(_zkKeys(address(_rootMock), address(_verifierHelperMock)));
+  }
+
   /// Deploying with seven words reverts with the length error. The method reads each word at a fixed position. A
   /// short set would leave one of them unset.
   function test_RevertWhen_TheInitialKeysAreSeven() external {

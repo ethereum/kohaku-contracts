@@ -682,6 +682,21 @@ contract AmbireRecoveryActionValidateSigTest is ActionSpendTestBase {
     _expectPlainRefusedAt(_calls, 1);
   }
 
+  /// @notice A grant cut to its first 35 bytes, the selector and all but the last byte of the
+  ///         address word, still names no full address, so it is refused at the grant's index. A
+  ///         length check off by one byte would read past the call's data or accept a partial key.
+  function test_RevertWhen_TheGrantStopsOneByteShortOfAnAddress() external {
+    IAmbireRecoveryAction.Transaction[] memory _calls = _plainBatch();
+    bytes memory _cut = new bytes(35);
+    for (uint256 _i; _i < 35; ++_i) {
+      _cut[_i] = _calls[1].data[_i];
+    }
+    _calls[1].data = _cut;
+    // it should revert
+    // it should name index 1
+    _expectPlainRefusedAt(_calls, 1);
+  }
+
   /// @notice A revoke writing a nonzero value leaves the lost key with power, so it is refused at
   ///         index 2. `_value` is any nonzero word.
   function testFuzz_RevertWhen_TheRevokeWritesAValue(uint256 _value) external {

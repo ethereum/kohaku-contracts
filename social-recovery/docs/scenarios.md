@@ -519,6 +519,8 @@ Then:
 - `test/integration/PauseStopsSuspectRecovery.t.sol`: `test_WhenTheStopEndsTheHoldersOwnAttempt`
 - `test/integration/PauseStopsSuspectRecovery.t.sol`: `test_WhenThePauseHolderTargetsOneAttempt`
 - `test/integration/PauseStopsSuspectRecovery.t.sol`: `test_WhenAKeylessHolderWaitsForTheUnpause`
+- `test/integration/PauseStopsSuspectRecovery.t.sol`: `test_WhenAFrontRunnerSubmitsASubsetAndAUsedMethodIsStopped`
+- `test/integration/PauseStopsSuspectRecovery.t.sol`: `test_WhenAFrontRunnerSubmitsASubsetAndAnUnusedMethodIsStopped`
 
 ## S-10 Recovery through a stop
 
@@ -605,7 +607,7 @@ Then:
 
 **Tradeoffs**
 
-- The key admin can set a key it controls (Aadhaar) or a root verifier it controls (zkPassport) and forge a proof for any digest. A holder whose rule rests on that method alone loses the account, and the same forgery fills cancels. (D-104, D-110)
+- The Aadhaar key admin can set a key it controls and forge a proof for any digest. A holder whose rule rests on that method alone loses the account, and the same forgery fills cancels. The zkPassport key admin cannot do the same through the router, since the method fixes its root verifier at deployment and refuses a list that names another, so forging a zkPassport proof needs zkPassport's own root admin or guardian. (D-104, D-110)
 - A rotation during a wait removes honest cancels that lean on the method, while the hostile attempt stands. (D-110)
 - A zkPassport release that changes the identifier derivation strands committed credentials once the version moves. (D-110)
 
@@ -614,7 +616,7 @@ Then:
 - `test/integration/IdentityMethodKeyRotation.t.sol`: `test_WhenTheKeyAdminRotatesTheIssuerKey`
 - `test/integration/IdentityMethodKeyRotation.t.sol`: `test_WhenAnAcceptedAttemptOutlivesTheRotation`
 - `test/integration/IdentityMethodKeyRotation.t.sol`: `test_WhenTheKeyAdminForgesAProof`
-- `test/integration/IdentityMethodKeyRotation.t.sol`: `test_WhenTheKeyAdminRoutesProofsToARootVerifierItControls`
+- `test/integration/IdentityMethodKeyRotation.t.sol`: `test_WhenTheKeyAdminTriesToRouteProofsToARootVerifierItControls`
 - `test/integration/IdentityMethodKeyRotation.t.sol`: `test_WhenARotationRemovesTheGuardiansCancel`
 
 ## S-12 Identity method role handover

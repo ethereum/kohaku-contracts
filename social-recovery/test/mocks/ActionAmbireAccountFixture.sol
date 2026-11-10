@@ -17,11 +17,14 @@ interface IActionAmbireValidator {
 ///         behind the proxy Ambire's factory builds. It keeps the privilege mapping as the first
 ///         state variable, at slot 0, because the deployed implementation and the factory's proxy
 ///         builder keep it there, so the proxy's creation code writes the first key straight into
-///         it. It transcribes `setAddrPrivilege` (lines 94-98), `execute` on its validator route
-///         (lines 140-172 and 331-357), `executeBySender` (lines 187-192), the batch loop that skips
-///         a call to the zero address (lines 218-224) and the call that bubbles a failing call's
-///         revert data (lines 233-244). The signature route that recovers an ECDSA signer is not
-///         transcribed: the fixture refuses it, since no recovery reaches it.
+///         it. It transcribes `setAddrPrivilege` (lines 97-101), `execute` on its validator route
+///         (lines 140-172) with the external-signature validation (lines 326-357), `executeBySender`
+///         (lines 187-192), the batch loop `executeBatch` that skips a call to the zero address
+///         (lines 219-225) and `executeCall`, which bubbles a failing call's revert data (lines
+///         234-245). The source is github.com/ethereum/kohaku-commons. The signature route that
+///         recovers an ECDSA signer is not transcribed: the fixture refuses it, since no recovery
+///         reaches it. Its fallback follows the deployed implementation rather than that source:
+///         it delegates an unknown call to the handler named under 0x6969, when one is set.
 // The transcription keeps Ambire's own revert strings and comparisons, so it reverts as the account does.
 // solhint-disable gas-custom-errors, reason-string, gas-strict-inequalities
 contract ActionAmbireAccountFixture {
@@ -29,6 +32,8 @@ contract ActionAmbireAccountFixture {
                           STATE VARIABLES
   ///////////////////////////////////////////////////////////////*/
 
+  /// @notice The privilege key whose entry names the fallback handler on the deployed implementation.
+  address internal constant _FALLBACK_HANDLER_SLOT = address(0x6969);
   /// @notice The privilege table, address to value, at storage slot 0.
   mapping(address _addr => bytes32 _privilege) public privileges;
   /// @notice The execute nonce, raised before any validation runs.
@@ -48,8 +53,23 @@ contract ActionAmbireAccountFixture {
   /// @notice Accepts the native asset without data, as the account does.
   receive() external payable {}
 
-  /// @notice Accepts any unknown call and returns nothing, as the account does.
-  fallback() external payable {}
+  /// @notice Runs the fallback handler on any unknown call, as the deployed implementation does. It reads the
+  ///         privilege entry under 0x6969 and keeps its low twenty bytes as the handler's address. When that
+  ///         address is nonzero, the call is delegated with its whole calldata to it, so the handler runs in the
+  ///         account's own storage, and the account returns or reverts with the handler's returndata. When it is
+  ///         zero, whatever the upper bytes of the entry hold, the call is accepted and returns nothing.
+  // solhint-disable-next-line no-complex-fallback
+  fallback() external payable {
+    address _handler = address(uint160(uint256(privileges[_FALLBACK_HANDLER_SLOT])));
+    if (_handler == address(0)) return;
+    assembly {
+      calldatacopy(0, 0, calldatasize())
+      let _result := delegatecall(gas(), _handler, 0, calldatasize(), 0, 0)
+      returndatacopy(0, 0, returndatasize())
+      if iszero(_result) { revert(0, returndatasize()) }
+      return(0, returndatasize())
+    }
+  }
 
   /// @notice Writes one privilege entry. Only the account itself may call it.
   function setAddrPrivilege(address addr, bytes32 priv) external payable {

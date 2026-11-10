@@ -87,14 +87,16 @@ contract ZkPassportMethodFuzzTest is MethodZkPassportFixture {
     _zkAssertKeysUnchanged();
   }
 
-  /// When the key admin sets a zero in any word but the guardian, the call reverts and names the index. The stored
-  /// words do not change. A key change cannot blank the version word, the root verifier or the verifier helper.
-  /// `_indexSeed` picks one of the seven indexes other than the guardian's: zero through five, or six for the last.
+  /// When the key admin sets a zero in any word but the guardian and the fixed root verifier, the call reverts and
+  /// names the index. The stored words do not change. A key change cannot blank the version word or the verifier
+  /// helper. `_indexSeed` picks one of the six indexes 0, 2, 3, 4, 5 and 7: a zero root word also changes the fixed
+  /// router, which the specification leaves unordered, and the guardian may be zero.
   function test_RevertWhen_TheKeyAdminSetsAZeroInAnyWordButTheGuardian(uint256 _indexSeed) external {
     // it should revert
-    uint256 _index = bound(_indexSeed, 0, _KEY_COUNT - 2);
+    uint256 _index = bound(_indexSeed, 0, _KEY_COUNT - 3);
+    if (_index > _WORD_VERSION) ++_index;
     if (_index == _WORD_ROOT_GUARDIAN) _index = _WORD_SUB_VERIFIER_ADMIN;
-    bytes32[] memory _keys = _zkKeys(makeAddr('otherRoot'), makeAddr('otherVerifierHelper'));
+    bytes32[] memory _keys = _zkKeys(address(_rootMock), makeAddr('otherVerifierHelper'));
     _keys[_index] = bytes32(0);
     vm.prank(_keyAdmin);
     vm.expectRevert(abi.encodeWithSelector(IZkPassportMethod.ZkPassportMethod_ZeroTrustedKey.selector, _index));
@@ -104,11 +106,12 @@ contract ZkPassportMethodFuzzTest is MethodZkPassportFixture {
   }
 
   /// When the key admin sets an address word whose upper twelve bytes are not zero, the call reverts and names the
-  /// index and the word. The stored words do not change. `_index` is bounded to the seven address words.
+  /// index and the word. The stored words do not change. `_index` is bounded to the six address words after the
+  /// root verifier, since a dirty root word also changes the fixed router, which the specification leaves unordered.
   function test_RevertWhen_TheKeyAdminSetsAnAddressWordWithUpperBytesSet(uint256 _index, uint256 _upper) external {
     // it should revert
-    _index = bound(_index, _WORD_ROOT, _KEY_COUNT - 1);
-    bytes32[] memory _keys = _zkKeys(makeAddr('otherRoot'), makeAddr('otherVerifierHelper'));
+    _index = bound(_index, _WORD_SUB_VERIFIER, _KEY_COUNT - 1);
+    bytes32[] memory _keys = _zkKeys(address(_rootMock), makeAddr('otherVerifierHelper'));
     _keys[_index] = _zkDirty(_keys[_index], _upper);
     vm.prank(_keyAdmin);
     vm.expectRevert(
@@ -119,14 +122,15 @@ contract ZkPassportMethodFuzzTest is MethodZkPassportFixture {
     _zkAssertKeysUnchanged();
   }
 
-  /// The key admin can set any nonzero address in any address word, and the method stores it. The upper bytes check
-  /// never refuses a word that holds exactly one address. `_index` is bounded to the seven address words and
-  /// `_account` to one through the largest address.
+  /// The key admin can set any nonzero address in any address word after the root verifier, and the method stores
+  /// it, while the root verifier word keeps the fixed router. The upper bytes check never refuses a word that holds
+  /// exactly one address. `_index` is bounded to the six address words after the root verifier and `_account` to
+  /// one through the largest address.
   function test_WhenTheKeyAdminSetsACleanAddressInAnyAddressWord(uint256 _index, uint256 _account) external {
     // it should store the word as given
-    _index = bound(_index, _WORD_ROOT, _KEY_COUNT - 1);
+    _index = bound(_index, _WORD_SUB_VERIFIER, _KEY_COUNT - 1);
     _account = bound(_account, 1, type(uint160).max);
-    bytes32[] memory _keys = _zkKeys(makeAddr('otherRoot'), makeAddr('otherVerifierHelper'));
+    bytes32[] memory _keys = _zkKeys(address(_rootMock), makeAddr('otherVerifierHelper'));
     _keys[_index] = bytes32(_account);
     vm.prank(_keyAdmin);
     _method.setTrustedKeys(_keys);
@@ -138,7 +142,7 @@ contract ZkPassportMethodFuzzTest is MethodZkPassportFixture {
   /// stored words do not change. The padding is added to release 0.21.0.
   function test_RevertWhen_TheKeyAdminSetsAVersionWordWithAnyNonzeroPadding(uint256 _padding) external {
     // it should revert
-    bytes32[] memory _keys = _zkKeys(makeAddr('otherRoot'), makeAddr('otherVerifierHelper'));
+    bytes32[] memory _keys = _zkKeys(address(_rootMock), makeAddr('otherVerifierHelper'));
     _keys[_WORD_VERSION] = _zkDirtyVersion(_ZK_VERSION_0_21_0, _padding);
     vm.prank(_keyAdmin);
     vm.expectRevert(
@@ -155,12 +159,32 @@ contract ZkPassportMethodFuzzTest is MethodZkPassportFixture {
   function test_WhenTheKeyAdminSetsACanonicalVersionWordForAnyRelease(uint256 _release) external {
     // it should store the word as given
     _release = bound(_release, 1, type(uint48).max);
-    bytes32[] memory _keys = _zkKeys(makeAddr('otherRoot'), makeAddr('otherVerifierHelper'));
+    bytes32[] memory _keys = _zkKeys(address(_rootMock), makeAddr('otherVerifierHelper'));
     _keys[_WORD_VERSION] = bytes32(_release << 208);
     vm.prank(_keyAdmin);
     _method.setTrustedKeys(_keys);
     (,, bytes32[] memory _stored,,) = _method.trustedParties();
     assertEq(_stored[_WORD_VERSION], _keys[_WORD_VERSION]);
+  }
+
+  /// When the key admin proposes any other clean, nonzero root verifier with every other word valid, the call
+  /// reverts with the fixed and the proposed words, and the stored words do not change. `_seed` builds the proposed
+  /// router as a fresh address from keccak256 of a label and the seed, moved off zero and off the fixed router.
+  function test_RevertWhen_TheKeyAdminProposesAnyOtherRootVerifier(uint256 _seed) external {
+    // it should revert
+    address _proposed = address(uint160(uint256(keccak256(abi.encode('proposedRootVerifier', _seed)))));
+    if (_proposed == address(0)) _proposed = address(1);
+    if (_proposed == address(_rootMock)) _proposed = address(uint160(_proposed) ^ 1);
+    bytes32[] memory _keys = _zkKeys(_proposed, makeAddr('otherVerifierHelper'));
+    vm.prank(_keyAdmin);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IZkPassportMethod.ZkPassportMethod_RootVerifierChanged.selector, _zkWord(address(_rootMock)), _zkWord(_proposed)
+      )
+    );
+    _method.setTrustedKeys(_keys);
+    // it should keep the previous words
+    _zkAssertKeysUnchanged();
   }
 
   /*///////////////////////////////////////////////////////////////

@@ -3,6 +3,9 @@ ZkPassportMethodConstructorTest
 │   ├── it should make the initial owner the pause holder
 │   ├── it should make the initial admin the key admin
 │   └── it should store the eight initial words in order
+├── when the initial list names a root verifier
+│   ├── it should accept a later list that keeps that root verifier
+│   └── it should refuse a later list naming another root verifier
 ├── when the initial keys are seven
 │   └── it should revert
 ├── when the initial keys are nine

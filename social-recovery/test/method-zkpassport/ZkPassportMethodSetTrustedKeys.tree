@@ -1,7 +1,18 @@
 ZkPassportMethodSetTrustedKeysTest
 ├── when the key admin sets eight valid words
 │   ├── it should store the eight new words in order
-│   └── it should emit TrustedKeysUpdated with the previous and the new words
+│   ├── it should emit TrustedKeysUpdated with the previous and the new words
+│   └── it should still report the fixed root verifier as the second word
+├── when the key admin proposes another root verifier
+│   ├── it should revert
+│   ├── it should carry the fixed and the proposed words
+│   └── it should keep the previous words
+├── when the key admin sets a dirty root verifier word
+│   ├── it should revert
+│   └── it should keep the previous words
+├── when the key admin sets a zero root verifier word
+│   ├── it should revert
+│   └── it should keep the previous words
 ├── when the key admin sets a zero guardian word
 │   └── it should store the zero word
 ├── when the key admin sets a guardian word with only upper bytes set

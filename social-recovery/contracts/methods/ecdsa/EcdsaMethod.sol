@@ -31,6 +31,10 @@ contract EcdsaMethod is IPolicyMethod {
   ///////////////////////////////////////////////////////////////*/
 
   /// @inheritdoc IPolicyMethod
+  /// @dev A config of any length but 32 bytes returns zero. A 32-byte config whose upper twelve bytes are not
+  ///      zero is not a clean address, and the ABI decoder reverts on it instead of returning zero. A proof the
+  ///      guardian did not make returns zero. The manager reads a revert from a method as a rejection, the same
+  ///      as a zero answer, so the two outcomes refuse the proof alike.
   function verify(bytes calldata _config, bytes32 _digest, bytes calldata _proof)
     external
     view
