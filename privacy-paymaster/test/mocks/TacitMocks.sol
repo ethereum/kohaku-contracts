@@ -87,6 +87,26 @@ contract MockStingyTacitPool is MockTacitPool {
     }
 }
 
+/// A recipient that forwards part of its payout to `target`.
+contract EagerRecipient is IAccount {
+    address payable public immutable TARGET;
+
+    constructor(address payable target) {
+        TARGET = target;
+    }
+
+    receive() external payable {
+        (bool ok,) = TARGET.call{value: msg.value / 2}("");
+        require(ok);
+    }
+
+    function validateUserOp(PackedUserOperation calldata, bytes32, uint256) external pure returns (uint256) {
+        return 0;
+    }
+
+    function test() public {}
+}
+
 /// An account that accepts every operation and runs whatever the EntryPoint asks of it.
 contract OpenAccount is IAccount {
     receive() external payable {}

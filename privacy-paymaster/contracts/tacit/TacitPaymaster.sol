@@ -22,6 +22,17 @@ import {ITacitPool} from "./interfaces/ITacitPool.sol";
 /// stale; the only way to invalidate it is to spend its note. The whole note
 /// is spent: the fee goes to the paymaster and the rest to `recipient`.
 ///
+/// The operation's sender must be the withdrawal's recipient. Nothing in a
+/// proof commits to the operation carrying it, so without that the data in
+/// `paymasterAndData` would be a bearer instrument: anyone could lift it from
+/// the mempool, wrap it in an operation of their own with no calls, and have
+/// the victim's note sponsor it, choosing a `postOpGasLimit` that leaves the
+/// refund at zero. Requiring the recipient to be the sender means a replayer
+/// would have to sign as the recipient's own account. `BasePrivacyPaymaster`
+/// allows another sender when the operation makes no calls, which is why this
+/// paymaster checks the stricter condition itself rather than using
+/// `_requireSenderIsRecipientOrNoCalls`.
+///
 /// ETH pools only, so fees are never priced and the oracle is not used.
 contract TacitPaymaster is BasePrivacyPaymaster {
     struct PaymasterData {
@@ -45,6 +56,8 @@ contract TacitPaymaster is BasePrivacyPaymaster {
     error NotAWithdrawal(int256 extAmount);
     error InsertsLeaves();
     error FeeNotPaid(uint256 expected, uint256 received);
+    error SenderIsNotRecipient(address sender, address recipient);
+    error BadRecipient();
 
     // ----- STATE -----
     mapping(ITacitPool => bool) public pools;
@@ -85,7 +98,9 @@ contract TacitPaymaster is BasePrivacyPaymaster {
         if (!pools[d.pool]) revert PoolNotAllowed(address(d.pool));
         if (d.extAmount >= 0) revert NotAWithdrawal(d.extAmount);
         if (d.publicInputs[OUT_LEAF_0] != 0 || d.publicInputs[OUT_LEAF_1] != 0) revert InsertsLeaves();
-        _requireSenderIsRecipientOrNoCalls(userOp, d.recipient);
+        if (userOp.sender != d.recipient) revert SenderIsNotRecipient(userOp.sender, d.recipient);
+        // Withdrawing to this paymaster would pay it the whole note and leave nothing to refund.
+        if (d.recipient == address(this)) revert BadRecipient();
 
         uint256 balanceBefore = address(this).balance;
         d.pool.transact(d.pA, d.pB, d.pC, d.publicInputs, d.recipient, d.extAmount, address(this), d.fee, "", "");
@@ -93,6 +108,8 @@ contract TacitPaymaster is BasePrivacyPaymaster {
         uint256 received = address(this).balance - balanceBefore;
         if (received < d.fee) revert FeeNotPaid(d.fee, received);
 
-        return (address(0), received, d.recipient);
+        // The declared fee, not the balance change: anything beyond it is not this operation's to
+        // refund, and counting it would let a recipient that sends ETH back inflate the refund.
+        return (address(0), d.fee, d.recipient);
     }
 }

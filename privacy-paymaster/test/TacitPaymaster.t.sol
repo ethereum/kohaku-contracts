@@ -12,7 +12,13 @@ import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV
 import {BasePrivacyPaymaster} from "../contracts/BasePrivacyPaymaster.sol";
 import {ITacitPool} from "../contracts/tacit/interfaces/ITacitPool.sol";
 import {TacitPaymaster} from "../contracts/tacit/TacitPaymaster.sol";
-import {MockTacitPool, MockTacitTokenPool, MockStingyTacitPool, OpenAccount} from "./mocks/TacitMocks.sol";
+import {
+    EagerRecipient,
+    MockStingyTacitPool,
+    MockTacitPool,
+    MockTacitTokenPool,
+    OpenAccount
+} from "./mocks/TacitMocks.sol";
 
 contract TacitPaymasterTest is Test {
     address internal constant SENDER = address(0x5EDE2);
@@ -100,7 +106,7 @@ contract TacitPaymasterTest is Test {
     // ----- Validation -----
 
     function test_valid() public {
-        bytes memory context = _validate(_withdrawal(0.1 ether, SENDER, 0), 0.05 ether);
+        bytes memory context = _validate(_withdrawal(0.1 ether, RECIPIENT, 0), 0.05 ether);
 
         BasePrivacyPaymaster.PostOpContext memory ctx = abi.decode(context, (BasePrivacyPaymaster.PostOpContext));
         assertEq(ctx.feeToken, address(0));
@@ -111,9 +117,46 @@ contract TacitPaymasterTest is Test {
         assertEq(RECIPIENT.balance, 0.9 ether);
     }
 
-    function test_valid_recipientIsSenderAllowsCallGasLimit() public {
+    /// The recipient spends what it withdrew in the same operation.
+    function test_valid_recipientMayMakeCalls() public {
         _validate(_withdrawal(0.1 ether, RECIPIENT, 1_000_000), 0.05 ether);
         assertEq(RECIPIENT.balance, 0.9 ether);
+    }
+
+    /// Without this, `paymasterAndData` would be a bearer instrument: anyone could lift it from
+    /// the mempool, wrap it in an operation of their own, and have the victim's note sponsor it.
+    function test_anotherSenderCannotRideTheProof() public {
+        PackedUserOperation memory op = _withdrawal(0.1 ether, SENDER, 0);
+
+        vm.expectRevert(abi.encodeWithSelector(TacitPaymaster.SenderIsNotRecipient.selector, SENDER, RECIPIENT));
+        _validate(op, 0.05 ether);
+        assertFalse(pool.nullified(1), "the note is untouched");
+    }
+
+    function test_rejectsWithdrawalToThePaymaster() public {
+        TacitPaymaster.PaymasterData memory d = _data(address(pool), -0.9 ether, 0.1 ether, 1, 0, 0);
+        d.recipient = payable(address(paymaster));
+
+        vm.expectRevert(TacitPaymaster.BadRecipient.selector);
+        _validate(_op(d, address(paymaster), 0), 0.05 ether);
+    }
+
+    /// A recipient that sends ETH back during its payout cannot inflate what the refund is
+    /// measured against: the declared fee is what counts.
+    function test_feePaidIsTheDeclaredFee() public {
+        EagerRecipient eager = new EagerRecipient(payable(address(paymaster)));
+        TacitPaymaster.PaymasterData memory d = _data(address(pool), -0.9 ether, 0.1 ether, 1, 0, 0);
+        d.recipient = payable(address(eager));
+
+        bytes memory context = _validate(_op(d, address(eager), 0), 0.05 ether);
+        BasePrivacyPaymaster.PostOpContext memory ctx = abi.decode(context, (BasePrivacyPaymaster.PostOpContext));
+        assertEq(ctx.feePaid, 0.1 ether, "the declared fee, not the balance change");
+        assertGt(address(paymaster).balance, 0.1 ether, "more ETH did arrive");
+    }
+
+    function test_zeroFeeIsRefusedWhenGasCosts() public {
+        vm.expectRevert(abi.encodeWithSelector(BasePrivacyPaymaster.InsufficientFee.selector, 0.05 ether, 0));
+        _validate(_withdrawal(0, RECIPIENT, 0), 0.05 ether);
     }
 
     function test_poolNotAllowed() public {
@@ -127,7 +170,7 @@ contract TacitPaymasterTest is Test {
     function test_poolDisallowed() public {
         paymaster.setPool(ITacitPool(address(pool)), false);
         vm.expectRevert(abi.encodeWithSelector(TacitPaymaster.PoolNotAllowed.selector, address(pool)));
-        _validate(_withdrawal(0.1 ether, SENDER, 0), 0.05 ether);
+        _validate(_withdrawal(0.1 ether, RECIPIENT, 0), 0.05 ether);
     }
 
     function test_notAWithdrawal() public {
@@ -151,27 +194,22 @@ contract TacitPaymasterTest is Test {
         _validate(second, 0.05 ether);
     }
 
-    function test_callGasLimitNonZero() public {
-        vm.expectRevert(abi.encodeWithSelector(BasePrivacyPaymaster.CallGasLimitNonZero.selector, 1_000_000));
-        _validate(_withdrawal(0.1 ether, SENDER, 1_000_000), 0.05 ether);
-    }
-
     function test_insufficientFee() public {
         vm.expectRevert(abi.encodeWithSelector(BasePrivacyPaymaster.InsufficientFee.selector, 0.1 ether, 0.01 ether));
-        _validate(_withdrawal(0.01 ether, SENDER, 0), 0.1 ether);
+        _validate(_withdrawal(0.01 ether, RECIPIENT, 0), 0.1 ether);
     }
 
     function test_insufficientFeeWithMarkup() public {
         paymaster.setMarkup(1_000); // 10%
         // 0.1 ETH of gas needs 0.11 ETH of fee.
         vm.expectRevert(abi.encodeWithSelector(BasePrivacyPaymaster.InsufficientFee.selector, 0.11 ether, 0.1 ether));
-        _validate(_withdrawal(0.1 ether, SENDER, 0), 0.1 ether);
+        _validate(_withdrawal(0.1 ether, RECIPIENT, 0), 0.1 ether);
     }
 
     function test_nullifierSingleUse() public {
-        _validate(_withdrawal(0.1 ether, SENDER, 0), 0.05 ether);
+        _validate(_withdrawal(0.1 ether, RECIPIENT, 0), 0.05 ether);
         vm.expectRevert(MockTacitPool.AlreadyNullified.selector);
-        _validate(_withdrawal(0.1 ether, SENDER, 0), 0.05 ether);
+        _validate(_withdrawal(0.1 ether, RECIPIENT, 0), 0.05 ether);
     }
 
     function test_feeNotPaid() public {
@@ -179,7 +217,7 @@ contract TacitPaymasterTest is Test {
         vm.deal(address(stingy), 10 ether);
         paymaster.setPool(ITacitPool(address(stingy)), true);
 
-        PackedUserOperation memory op = _op(_data(address(stingy), -0.9 ether, 0.1 ether, 1, 0, 0), SENDER, 0);
+        PackedUserOperation memory op = _op(_data(address(stingy), -0.9 ether, 0.1 ether, 1, 0, 0), RECIPIENT, 0);
         vm.expectRevert(abi.encodeWithSelector(TacitPaymaster.FeeNotPaid.selector, 0.1 ether, 0));
         _validate(op, 0.05 ether);
     }
@@ -205,7 +243,7 @@ contract TacitPaymasterTest is Test {
     }
 
     function test_rejectsNonEntryPoint() public {
-        PackedUserOperation memory op = _withdrawal(0.1 ether, SENDER, 0);
+        PackedUserOperation memory op = _withdrawal(0.1 ether, RECIPIENT, 0);
         vm.expectRevert("Sender not EntryPoint");
         paymaster.validatePaymasterUserOp(op, bytes32(0), 0.05 ether);
     }
