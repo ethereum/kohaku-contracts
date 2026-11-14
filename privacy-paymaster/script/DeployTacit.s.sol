@@ -14,6 +14,8 @@ import {TacitPaymaster} from "../contracts/tacit/TacitPaymaster.sol";
 ///
 /// A Tacit proof binds the relayer it was made for, so clients are configured with the paymaster's address: deploy
 /// once, keep the address, and stake and fund it with `StakePaymaster`.
+///
+/// The owner is `PAYMASTER_OWNER` when set, otherwise the deploying key.
 contract DeployTacit is Script {
     function run() external returns (TacitPaymaster paymaster) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
@@ -25,7 +27,9 @@ contract DeployTacit is Script {
     function deploy(uint256 privateKey) public returns (TacitPaymaster) {
         (IEntryPoint entryPoint, IUniswapV3Factory factory, address weth, uint32 twapPeriod) = PaymasterSetup.baseArgs();
 
+        address owner = vm.envOr("PAYMASTER_OWNER", vm.addr(privateKey));
+
         vm.broadcast(privateKey);
-        return new TacitPaymaster(entryPoint, factory, weth, twapPeriod);
+        return new TacitPaymaster(entryPoint, factory, weth, twapPeriod, owner);
     }
 }

@@ -43,7 +43,9 @@ contract TacitPaymasterRealPoolTest is Test {
 
     function setUp() public {
         entryPoint = new EntryPoint();
-        paymaster = new TacitPaymaster(IEntryPoint(address(entryPoint)), IUniswapV3Factory(address(0)), address(0), 300);
+        paymaster = new TacitPaymaster(
+            IEntryPoint(address(entryPoint)), IUniswapV3Factory(address(0)), address(0), 300, address(this)
+        );
         address verifier = address(new AlwaysTrueVerifier());
         pool = IRealPool(_deployPool(verifier));
         vm.deal(address(pool), 5 ether);

@@ -58,6 +58,7 @@ contract TacitPaymaster is BasePrivacyPaymaster {
     error FeeNotPaid(uint256 expected, uint256 received);
     error SenderIsNotRecipient(address sender, address recipient);
     error BadRecipient();
+    error ZeroOwner();
 
     // ----- STATE -----
     mapping(ITacitPool => bool) public pools;
@@ -65,9 +66,16 @@ contract TacitPaymaster is BasePrivacyPaymaster {
     // ----- EVENTS -----
     event PoolSet(address indexed pool, bool allowed);
 
-    constructor(IEntryPoint _entryPoint, IUniswapV3Factory _factory, address _weth, uint32 _twapPeriod)
+    /// @param owner_ The owner, rather than the deployer. A Tacit proof binds the relayer it was made
+    ///        for, so clients are configured with this paymaster's address; taking the owner as an
+    ///        argument lets the same address be deployed on several chains through a CREATE3 factory,
+    ///        whose ephemeral proxy would otherwise end up owning it.
+    constructor(IEntryPoint _entryPoint, IUniswapV3Factory _factory, address _weth, uint32 _twapPeriod, address owner_)
         BasePrivacyPaymaster(_entryPoint, _factory, _weth, _twapPeriod)
-    {}
+    {
+        if (owner_ == address(0)) revert ZeroOwner();
+        if (owner_ != msg.sender) _transferOwnership(owner_);
+    }
 
     // ----- ADMIN -----
 

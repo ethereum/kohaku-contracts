@@ -31,7 +31,9 @@ contract TacitPaymasterTest is Test {
 
     function setUp() public {
         entryPoint = new EntryPoint();
-        paymaster = new TacitPaymaster(IEntryPoint(address(entryPoint)), IUniswapV3Factory(address(0)), address(0), 300);
+        paymaster = new TacitPaymaster(
+            IEntryPoint(address(entryPoint)), IUniswapV3Factory(address(0)), address(0), 300, address(this)
+        );
         pool = new MockTacitPool();
         vm.deal(address(pool), 10 ether);
         paymaster.setPool(ITacitPool(address(pool)), true);
@@ -95,6 +97,24 @@ contract TacitPaymasterTest is Test {
         address tokenPool = address(new MockTacitTokenPool());
         vm.expectRevert(abi.encodeWithSelector(TacitPaymaster.NotAnEthPool.selector, tokenPool));
         paymaster.setPool(ITacitPool(tokenPool), true);
+    }
+
+    /// A CREATE3 factory's ephemeral proxy is the deployer, so the owner is an argument: without
+    /// that, nobody could allowlist a pool, stake the paymaster or withdraw its deposit.
+    function test_ownerIsTheArgumentNotTheDeployer() public {
+        TacitPaymaster owned = new TacitPaymaster(
+            IEntryPoint(address(entryPoint)), IUniswapV3Factory(address(0)), address(0), 300, RECIPIENT
+        );
+
+        assertEq(owned.owner(), RECIPIENT);
+        vm.prank(RECIPIENT);
+        owned.setPool(ITacitPool(address(pool)), true);
+        assertTrue(owned.pools(ITacitPool(address(pool))));
+    }
+
+    function test_rejectsZeroOwner() public {
+        vm.expectRevert(TacitPaymaster.ZeroOwner.selector);
+        new TacitPaymaster(IEntryPoint(address(entryPoint)), IUniswapV3Factory(address(0)), address(0), 300, address(0));
     }
 
     function test_setPool_rejectsNonOwner() public {
@@ -265,7 +285,9 @@ contract TacitPaymasterEntryPointTest is Test {
 
     function setUp() public {
         entryPoint = new EntryPoint();
-        paymaster = new TacitPaymaster(IEntryPoint(address(entryPoint)), IUniswapV3Factory(address(0)), address(0), 300);
+        paymaster = new TacitPaymaster(
+            IEntryPoint(address(entryPoint)), IUniswapV3Factory(address(0)), address(0), 300, address(this)
+        );
         pool = new MockTacitPool();
         vm.deal(address(pool), 10 ether);
         paymaster.setPool(ITacitPool(address(pool)), true);
