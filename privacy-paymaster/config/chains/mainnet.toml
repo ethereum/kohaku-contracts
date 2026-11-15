@@ -120,6 +120,11 @@ uniswap_fee = 500
 # instance = "0xD21be7248e0197Ee08E0c20D4a96DEBdaC3D20Af"
 # denomination = "500000000000000"
 
+# Tacit EVM pool (mainnet): one immutable native-ETH pool with no owner, pause or upgrade.
+
+[protocols.tacit.eth]
+instance = "0x000000c2A20657CE25f2Ba99737933D031AFBEE9"
+
 [protocols.railgun]
 smart_wallet = "0xFA7093CDD9EE6932B4eb2c9e1cde7CE00B1FA4b9"
 master_public_key = "0x19acdde26147205d58fd7768be7c011f08a147ef86e6b70968d09c81cef74b13"

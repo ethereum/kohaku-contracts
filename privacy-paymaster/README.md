@@ -1,6 +1,6 @@
 # Privacy Paymasters
 
-This repo contains implementations of 4337 paymasters for various privacy protocols (Tornado Cash, Railgun). These paymasters are designed to enable private unshields to new user accounts without needing a trusted per-protocol relayer. Users pay for their transactions using the private assets they hold or are unshielding.
+This repo contains implementations of 4337 paymasters for various privacy protocols (Tornado Cash, Privacy Pools, Railgun, Tacit). These paymasters are designed to enable private unshields to new user accounts without needing a trusted per-protocol relayer. Users pay for their transactions using the private assets they hold or are unshielding.
 
 For more information, see the docs in `docs/`. For information on specific protocol implementations, see the relevant subdirectories and docstrings in `contracts/`.
 
@@ -22,6 +22,10 @@ PAYMASTER_ADDRESS=0x... forge script SetupTornado --rpc-url $SEPOLIA_RPC_URL --b
 forge script DeployPrivacyPools --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
 PAYMASTER_ADDRESS=0x... forge script SetupPrivacyPools --rpc-url $SEPOLIA_RPC_URL --broadcast
 
+# Tacit
+DEPLOY_ENV=mainnet forge script DeployTacit --rpc-url $MAINNET_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
+DEPLOY_ENV=mainnet PAYMASTER_ADDRESS=0x... forge script SetupTacit --rpc-url $MAINNET_RPC_URL --broadcast
+
 # Railgun
 forge script DeployRailgun --rpc-url $SEPOLIA_RPC_URL --verifier etherscan --verifier-api-key $ETHERSCAN_API_KEY --verify --broadcast
 
@@ -35,3 +39,4 @@ PAYMASTER_ADDRESS=0x... STAKE_AMOUNT=0 UNSTAKE_DELAY=0 DEPOSIT_AMOUNT=0 forge sc
 | Tornadocash   | 11155111 | 0x835ce2da8ad0d1f5d5a8462a58594006514c39b0 | f8939fff2460a7de9337850672c561a2751eb572 |
 | Privacy Pools | 11155111 | 0xfaeaFADa5Db4dE4Ff266e1f86eA1862Adbd06421 | f8939fff2460a7de9337850672c561a2751eb572 |
 | Railgun       | 11155111 | 0x54933d3445D133Aa64d1c9eC5F56542C87B22914 | f8939fff2460a7de9337850672c561a2751eb572 |
+| Tacit         | 11155111 | 0xAC99d6ef0DFc4c1B9e6D5A1862aCc0a1646E9BD0 | 2fe550b                                  |
