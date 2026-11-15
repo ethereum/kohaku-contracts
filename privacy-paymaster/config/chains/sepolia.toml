@@ -36,6 +36,11 @@ instance = "0x3d1C943dfb2C8d9905B0Da0AFD18615915fF343A"
 instance = "0x6921fd1a97441dd603a997ED6DDF388658daf754"
 uniswap_fee = 500
 
+# Tacit EVM pool: one immutable native-ETH pool with no owner, pause or upgrade. The same address
+# as on Ethereum.
+[protocols.tacit.eth]
+instance = "0x000000c2A20657CE25f2Ba99737933D031AFBEE9"
+
 [protocols.privacy_pools.simple_eth]
 instance = "0x644d5A2554d36e27509254F32ccfeBe8cd58861f"
 
