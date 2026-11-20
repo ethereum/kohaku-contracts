@@ -1,5 +1,7 @@
 ## Tornadocash Fixtures
 
+Used by the SDK e2e test (Sepolia fork). The forge integration test uses `../tornadocash-local/` instead.
+
 To regenerate the tornadocash fixtures:
 1. Selecting the fork block
 2. Select the tornadocash pool to use for testing (e.g. 0.1 ETH)

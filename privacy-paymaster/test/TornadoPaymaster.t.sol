@@ -2,7 +2,6 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {Chains} from "../script/lib/Chains.sol";
 
 import {EntryPoint} from "@account-abstraction/contracts/core/EntryPoint.sol";
 import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
@@ -155,45 +154,45 @@ contract TornadoPaymasterTest is Test {
     }
 }
 
-contract TornadoPaymasterForkTest is Test {
+contract TornadoPaymasterIntegrationTest is Test {
     address internal constant SENDER = address(0x5EDE2);
+    uint256 internal constant DENOMINATION = 0.1 ether;
+    // The withdraw circuit has 20 levels, so the proof's root only matches a depth-20 tree.
+    uint32 internal constant MERKLE_TREE_HEIGHT = 20;
+    // ETH fees never read the Uniswap oracle, so the factory, WETH and TWAP period are placeholders.
+    uint32 internal constant TWAP_PERIOD = 300;
+    uint128 internal constant PAYMASTER_VERIFICATION_GAS_LIMIT = 500_000;
+    uint128 internal constant PAYMASTER_POST_OP_GAS_LIMIT = 50_000;
 
     ITornadoInstance internal tornado;
     TornadoPaymaster internal paymaster;
-    address internal entryPointAddr;
+    EntryPoint internal entryPoint;
 
     function setUp() public {
-        // Skip when there's no Sepolia RPC, e.g. on PRs from forks,
-        // which don't get secrets.
-        string memory rpc = vm.envOr("SEPOLIA_RPC_URL", string(""));
-        if (bytes(rpc).length == 0) {
-            vm.skip(true);
-            return;
-        }
-
-        vm.createSelectFork(vm.rpcUrl("sepolia"), TornadoFixtures.loadForkBlock());
-
-        entryPointAddr = Chains.readAddress("protocols.erc4337", "entry_point");
-        address factory = Chains.readAddress("protocols.uniswap_v3", "factory");
-        address weth = Chains.readAddress("tokens", "weth");
-        uint32 twapPeriod = uint32(Chains.readUint("protocols.uniswap_v3", "twap_period"));
-        tornado = ITornadoInstance(Chains.readAddress("protocols.tornado.eth_1", "instance"));
+        address hasher = _deploy(TornadoFixtures.loadCreationCode("hasher"));
+        address verifier = _deploy(TornadoFixtures.loadCreationCode("verifier"));
+        tornado = ITornadoInstance(
+            _deploy(
+                bytes.concat(
+                    TornadoFixtures.loadCreationCode("eth_tornado"),
+                    abi.encode(verifier, hasher, DENOMINATION, MERKLE_TREE_HEIGHT)
+                )
+            )
+        );
+        entryPoint = new EntryPoint();
 
         // Deploy the paymaster at the fixture relayer address so the proof's
         // committed relayer matches the paymaster.
         address paymasterAddr = TornadoFixtures.loadRelayer();
         deployCodeTo(
             "TornadoPaymaster.sol:TornadoPaymaster",
-            abi.encode(IEntryPoint(entryPointAddr), IUniswapV3Factory(factory), weth, twapPeriod),
+            abi.encode(IEntryPoint(address(entryPoint)), IUniswapV3Factory(address(0)), makeAddr("weth"), TWAP_PERIOD),
             paymasterAddr
         );
         paymaster = TornadoPaymaster(payable(paymasterAddr));
         paymaster.setInstance(tornado, true);
 
-        address depositor = address(0xDEADBEEF);
-        vm.deal(depositor, tornado.denomination());
-        vm.prank(depositor);
-        tornado.deposit{value: tornado.denomination()}(TornadoFixtures.loadCommitment());
+        tornado.deposit{value: DENOMINATION}(TornadoFixtures.loadCommitment());
     }
 
     // ----- Helpers -----
@@ -209,13 +208,22 @@ contract TornadoPaymasterForkTest is Test {
         });
 
         op.sender = SENDER;
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(500_000), uint128(50_000), abi.encode(data));
+        op.paymasterAndData = abi.encodePacked(
+            address(paymaster), PAYMASTER_VERIFICATION_GAS_LIMIT, PAYMASTER_POST_OP_GAS_LIMIT, abi.encode(data)
+        );
+    }
+
+    function _deploy(bytes memory code) internal returns (address addr) {
+        assembly {
+            addr := create(0, add(code, 0x20), mload(code))
+        }
+        require(addr != address(0), "deploy failed");
     }
 
     // ----- Tests -----
 
     function test_valid() public {
-        vm.prank(entryPointAddr);
+        vm.prank(address(entryPoint));
         (bytes memory context, uint256 validationData) =
             paymaster.validatePaymasterUserOp(_buildUserOp(), bytes32(0), TornadoFixtures.loadFee());
 
@@ -226,5 +234,6 @@ contract TornadoPaymasterForkTest is Test {
         assertEq(ctx.maxCost, TornadoFixtures.loadFee());
         assertEq(ctx.maxCostInToken, TornadoFixtures.loadFee());
         assertEq(validationData, 0);
+        assertEq(address(paymaster).balance, TornadoFixtures.loadFee());
     }
 }

@@ -24,4 +24,4 @@ forge build
 forge test -vvv
 ```
 
-`forge test` forks Sepolia and needs `SEPOLIA_RPC_URL` in the environment. CI reads that value from the `SEPOLIA_RPC_URL` GitHub Actions secret.
+The Railgun fork test needs `SEPOLIA_RPC_URL` in the environment and is skipped without it. CI reads that value from the `SEPOLIA_RPC_URL` GitHub Actions secret.
